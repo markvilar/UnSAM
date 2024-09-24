@@ -45,7 +45,7 @@ class MaskFormer(nn.Module):
         test_topk_per_image: int,
         is_self_train: bool,
         self_train_confidence_thresh_low: float,
-        self_train_confidence_thresh_high: float
+        self_train_confidence_thresh_high: float,
     ):
         """
         Args:
@@ -84,7 +84,9 @@ class MaskFormer(nn.Module):
             size_divisibility = self.backbone.size_divisibility
         self.size_divisibility = size_divisibility
         self.sem_seg_postprocess_before_inference = sem_seg_postprocess_before_inference
-        self.register_buffer("pixel_mean", torch.Tensor(pixel_mean).view(-1, 1, 1), False)
+        self.register_buffer(
+            "pixel_mean", torch.Tensor(pixel_mean).view(-1, 1, 1), False
+        )
         self.register_buffer("pixel_std", torch.Tensor(pixel_std).view(-1, 1, 1), False)
 
         # additional args
@@ -121,7 +123,11 @@ class MaskFormer(nn.Module):
             num_points=cfg.MODEL.MASK_FORMER.TRAIN_NUM_POINTS,
         )
 
-        weight_dict = {"loss_ce": class_weight, "loss_mask": mask_weight, "loss_dice": dice_weight}
+        weight_dict = {
+            "loss_ce": class_weight,
+            "loss_mask": mask_weight,
+            "loss_dice": dice_weight,
+        }
 
         if deep_supervision:
             dec_layers = cfg.MODEL.MASK_FORMER.DEC_LAYERS
@@ -142,7 +148,7 @@ class MaskFormer(nn.Module):
             oversample_ratio=cfg.MODEL.MASK_FORMER.OVERSAMPLE_RATIO,
             importance_sample_ratio=cfg.MODEL.MASK_FORMER.IMPORTANCE_SAMPLE_RATIO,
             use_drop_losses=cfg.SOLVER.USE_DROP_LOSSES,
-            droploss_iou_thresh=cfg.SOLVER.DROPLOSS_IOU_THRESH
+            droploss_iou_thresh=cfg.SOLVER.DROPLOSS_IOU_THRESH,
         )
 
         return {
@@ -237,9 +243,17 @@ class MaskFormer(nn.Module):
                     mask_cls_results, mask_pred_results
                 ):
                     scores = F.softmax(mask_cls_result, dim=-1)[:, :-1]
-                    topk_indices_low = (scores.flatten(0, 1) > self.self_train_confidence_thresh_low).to(torch.int)
-                    topk_indices_high = (self.self_train_confidence_thresh_high >= scores.flatten(0, 1)).to(torch.int)
-                    topk_indices = ((topk_indices_low+topk_indices_high) == 2).nonzero().squeeze()
+                    topk_indices_low = (
+                        scores.flatten(0, 1) > self.self_train_confidence_thresh_low
+                    ).to(torch.int)
+                    topk_indices_high = (
+                        self.self_train_confidence_thresh_high >= scores.flatten(0, 1)
+                    ).to(torch.int)
+                    topk_indices = (
+                        ((topk_indices_low + topk_indices_high) == 2)
+                        .nonzero()
+                        .squeeze()
+                    )
                     selected_mask_pred_results.append(mask_pred_result[topk_indices])
 
                 mask_pred_results = torch.cat(selected_mask_pred_results).unsqueeze(0)
@@ -270,19 +284,29 @@ class MaskFormer(nn.Module):
 
                 # semantic segmentation inference
                 if self.semantic_on:
-                    r = retry_if_cuda_oom(self.semantic_inference)(mask_cls_result, mask_pred_result)
+                    r = retry_if_cuda_oom(self.semantic_inference)(
+                        mask_cls_result, mask_pred_result
+                    )
                     if not self.sem_seg_postprocess_before_inference:
-                        r = retry_if_cuda_oom(sem_seg_postprocess)(r, image_size, height, width)
+                        r = retry_if_cuda_oom(sem_seg_postprocess)(
+                            r, image_size, height, width
+                        )
                     processed_results[-1]["sem_seg"] = r
 
                 # panoptic segmentation inference
                 if self.panoptic_on:
-                    panoptic_r = retry_if_cuda_oom(self.panoptic_inference)(mask_cls_result, mask_pred_result)
+                    panoptic_r = retry_if_cuda_oom(self.panoptic_inference)(
+                        mask_cls_result, mask_pred_result
+                    )
                     processed_results[-1]["panoptic_seg"] = panoptic_r
-                
+
                 # instance segmentation inference
                 if self.instance_on:
-                    instance_r = retry_if_cuda_oom(self.instance_inference)(mask_cls_result, mask_pred_result, (topk_indices if self.is_self_train else None))
+                    instance_r = retry_if_cuda_oom(self.instance_inference)(
+                        mask_cls_result,
+                        mask_pred_result,
+                        (topk_indices if self.is_self_train else None),
+                    )
                     processed_results[-1]["instances"] = instance_r
 
             return processed_results
@@ -293,7 +317,11 @@ class MaskFormer(nn.Module):
         for targets_per_image in targets:
             # pad gt
             gt_masks = targets_per_image.gt_masks
-            padded_masks = torch.zeros((gt_masks.shape[0], h_pad, w_pad), dtype=gt_masks.dtype, device=gt_masks.device)
+            padded_masks = torch.zeros(
+                (gt_masks.shape[0], h_pad, w_pad),
+                dtype=gt_masks.dtype,
+                device=gt_masks.device,
+            )
             padded_masks[:, : gt_masks.shape[1], : gt_masks.shape[2]] = gt_masks
             new_targets.append(
                 {
@@ -313,7 +341,9 @@ class MaskFormer(nn.Module):
         scores, labels = F.softmax(mask_cls, dim=-1).max(-1)
         mask_pred = mask_pred.sigmoid()
 
-        keep = labels.ne(self.sem_seg_head.num_classes) & (scores > self.object_mask_threshold)
+        keep = labels.ne(self.sem_seg_head.num_classes) & (
+            scores > self.object_mask_threshold
+        )
         cur_scores = scores[keep]
         cur_classes = labels[keep]
         cur_masks = mask_pred[keep]
@@ -337,7 +367,10 @@ class MaskFormer(nn.Module):
             stuff_memory_list = {}
             for k in range(cur_classes.shape[0]):
                 pred_class = cur_classes[k].item()
-                isthing = pred_class in self.metadata.thing_dataset_id_to_contiguous_id.values()
+                isthing = (
+                    pred_class
+                    in self.metadata.thing_dataset_id_to_contiguous_id.values()
+                )
                 mask_area = (cur_mask_ids == k).sum().item()
                 original_area = (cur_masks[k] >= 0.5).sum().item()
                 mask = (cur_mask_ids == k) & (cur_masks[k] >= 0.5)
@@ -373,14 +406,21 @@ class MaskFormer(nn.Module):
 
         # [Q, K]
         scores = F.softmax(mask_cls, dim=-1)[:, :-1]
-        labels = torch.arange(self.sem_seg_head.num_classes, device=self.device).unsqueeze(0).repeat(self.num_queries, 1).flatten(0, 1)
+        labels = (
+            torch.arange(self.sem_seg_head.num_classes, device=self.device)
+            .unsqueeze(0)
+            .repeat(self.num_queries, 1)
+            .flatten(0, 1)
+        )
         # scores_per_image, topk_indices = scores.flatten(0, 1).topk(self.num_queries, sorted=False)
-        
+
         if self.is_self_train:
             scores_per_image = scores.flatten(0, 1)[topk_indices]
             labels_per_image = labels[topk_indices]
         else:
-            scores_per_image, topk_indices = scores.flatten(0, 1).topk(self.test_topk_per_image, sorted=False)
+            scores_per_image, topk_indices = scores.flatten(0, 1).topk(
+                self.test_topk_per_image, sorted=False
+            )
             labels_per_image = labels[topk_indices]
             topk_indices = topk_indices // self.sem_seg_head.num_classes
             # mask_pred = mask_pred.unsqueeze(1).repeat(1, self.sem_seg_head.num_classes, 1).flatten(0, 1)
@@ -390,7 +430,9 @@ class MaskFormer(nn.Module):
         if self.panoptic_on:
             keep = torch.zeros_like(scores_per_image).bool()
             for i, lab in enumerate(labels_per_image):
-                keep[i] = lab in self.metadata.thing_dataset_id_to_contiguous_id.values()
+                keep[i] = (
+                    lab in self.metadata.thing_dataset_id_to_contiguous_id.values()
+                )
 
             scores_per_image = scores_per_image[keep]
             labels_per_image = labels_per_image[keep]
@@ -404,7 +446,9 @@ class MaskFormer(nn.Module):
         result.pred_boxes = BitMasks(mask_pred > 0).get_bounding_boxes()
 
         # calculate average mask prob
-        mask_scores_per_image = (mask_pred.sigmoid().flatten(1) * result.pred_masks.flatten(1)).sum(1) / (result.pred_masks.flatten(1).sum(1) + 1e-6)
+        mask_scores_per_image = (
+            mask_pred.sigmoid().flatten(1) * result.pred_masks.flatten(1)
+        ).sum(1) / (result.pred_masks.flatten(1).sum(1) + 1e-6)
         result.scores = scores_per_image * mask_scores_per_image
         result.pred_classes = labels_per_image
         return result

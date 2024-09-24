@@ -22,8 +22,13 @@ import cv2
 __all__ = ["SamSelfTrainTSVDatasetMapper"]
 
 _EXIF_ORIENT = 274
-_M_RGB2YUV = [[0.299, 0.587, 0.114], [-0.14713, -0.28886, 0.436], [0.615, -0.51499, -0.10001]]
+_M_RGB2YUV = [
+    [0.299, 0.587, 0.114],
+    [-0.14713, -0.28886, 0.436],
+    [0.615, -0.51499, -0.10001],
+]
 _M_YUV2RGB = [[1.0, 0.0, 1.13983], [1.0, -0.39465, -0.58060], [1.0, 2.03211, 0.0]]
+
 
 def _apply_exif_orientation(image):
     """
@@ -71,6 +76,7 @@ def _apply_exif_orientation(image):
         return image.transpose(method)
     return image
 
+
 def convert_PIL_to_numpy(image, format):
     """
     Convert PIL image to numpy array of target format.
@@ -103,12 +109,14 @@ def convert_PIL_to_numpy(image, format):
 
     return image
 
+
 def img_from_base64(imagestring):
     jpgbytestring = base64.b64decode(imagestring)
     image = BytesIO(jpgbytestring)
     image = Image.open(image).convert("RGB")
     image = _apply_exif_orientation(image)
     return convert_PIL_to_numpy(image, "RGB")
+
 
 def convert_coco_poly_to_mask(segmentations, height, width):
     masks = []
@@ -126,12 +134,13 @@ def convert_coco_poly_to_mask(segmentations, height, width):
         masks = torch.zeros((0, height, width), dtype=torch.uint8)
     return masks
 
+
 def area(mask):
     assert type(mask) is np.ndarray
     assert len(np.unique(mask)) <= 2
-    if mask.size == 0: return 0
+    if mask.size == 0:
+        return 0
     return np.count_nonzero(mask) / mask.size
-
 
 
 # This is specifically designed for the COCO dataset.
@@ -168,12 +177,14 @@ class SamSelfTrainTSVDatasetMapper:
         """
         self.augmentations = T.AugmentationList(augmentations)
         logging.getLogger(__name__).info(
-            "[SamSelfTrainTSVDatasetMapper] Full TransformGens used in training: {}".format(str(augmentations))
+            "[SamSelfTrainTSVDatasetMapper] Full TransformGens used in training: {}".format(
+                str(augmentations)
+            )
         )
 
         self.img_format = image_format
         self.is_train = is_train
-    
+
     @classmethod
     def from_config(cls, cfg, is_train=True):
         # Build augmentation
@@ -193,14 +204,14 @@ class SamSelfTrainTSVDatasetMapper:
         Returns:
             dict: a format that builtin models in detectron2 accept
         """
-        tsv_dir= os.getenv("TRAIN_DATASETS", None)
+        tsv_dir = os.getenv("TRAIN_DATASETS", None)
         tsv_name = idx[0]
         lineidx = idx[1]
         out = {}
 
-        with open(os.path.join(tsv_dir, tsv_name), 'r') as fp:
+        with open(os.path.join(tsv_dir, tsv_name), "r") as fp:
             fp.seek(lineidx)
-            tsv_info = [s.strip() for s in fp.readline().split('\t')]
+            tsv_info = [s.strip() for s in fp.readline().split("\t")]
 
         dataset_dict = json.loads(tsv_info[1])
         image = img_from_base64(tsv_info[-1])

@@ -42,22 +42,24 @@ from semantic_sam.utils import configurable
 from detectron2.utils.comm import get_world_size, is_main_process
 from typing import Any, Dict, List, Set
 
+
 class JointLoader(torchdata.IterableDataset):
     def __init__(self, loaders, key_dataset):
         dataset_names = []
         for key, loader in loaders.items():
-            name = "{}".format(key.split('_')[0])
+            name = "{}".format(key.split("_")[0])
             setattr(self, name, loader)
             dataset_names += [name]
         self.dataset_names = dataset_names
         self.key_dataset = key_dataset
-    
+
     def __iter__(self):
         for batch in zip(*[getattr(self, name) for name in self.dataset_names]):
             yield {key: batch[i] for i, key in enumerate(self.dataset_names)}
 
     def __len__(self):
         return len(getattr(self, self.key_dataset))
+
 
 def filter_images_with_only_crowd_annotations(dataset_dicts, dataset_names):
     """
@@ -95,9 +97,7 @@ def filter_images_with_only_crowd_annotations(dataset_dicts, dataset_names):
     return dataset_dicts
 
 
-def get_detection_dataset_dicts(
-    dataset_names, filter_empty=True, proposal_files=None
-):
+def get_detection_dataset_dicts(dataset_names, filter_empty=True, proposal_files=None):
     """
     Load and prepare dataset dicts for instance detection/segmentation and semantic segmentation.
 
@@ -113,7 +113,7 @@ def get_detection_dataset_dicts(
     if isinstance(dataset_names, str):
         dataset_names = [dataset_names]
     assert len(dataset_names)
-    
+
     dataset_dicts = [DatasetCatalog.get(dataset_name) for dataset_name in dataset_names]
     for dataset_name, dicts in zip(dataset_names, dataset_dicts):
         assert len(dicts), "Dataset '{}' is empty!".format(dataset_name)
@@ -130,9 +130,13 @@ def get_detection_dataset_dicts(
 
     has_instances = "annotations" in dataset_dicts[0]
     if filter_empty and has_instances:
-        dataset_dicts = filter_images_with_only_crowd_annotations(dataset_dicts, dataset_names)
+        dataset_dicts = filter_images_with_only_crowd_annotations(
+            dataset_dicts, dataset_names
+        )
 
-    assert len(dataset_dicts), "No valid data found in {}.".format(",".join(dataset_names))
+    assert len(dataset_dicts), "No valid data found in {}.".format(
+        ",".join(dataset_names)
+    )
     return dataset_dicts
 
 
@@ -153,15 +157,19 @@ def _test_loader_from_config(cfg, dataset_name, mapper=None):
     if mapper is None:
         if isinstance(cfg, (DictConfig)):
             cfg = OmegaConf.to_container(copy.deepcopy(cfg))
-        mapper_cfg = CfgNode({'INPUT': cfg['INPUT'], 'MODEL': cfg['MODEL'], 'DATASETS': cfg['DATASETS']})
+        mapper_cfg = CfgNode(
+            {"INPUT": cfg["INPUT"], "MODEL": cfg["MODEL"], "DATASETS": cfg["DATASETS"]}
+        )
         mapper = DatasetMapper(mapper_cfg, False)
-    assert cfg['TEST']['BATCH_SIZE_TOTAL'] % get_world_size() == 0, "Evaluation total batchsize is not divisible by gpu number"
-    batch_size = cfg['TEST']['BATCH_SIZE_TOTAL'] // get_world_size()
+    assert (
+        cfg["TEST"]["BATCH_SIZE_TOTAL"] % get_world_size() == 0
+    ), "Evaluation total batchsize is not divisible by gpu number"
+    batch_size = cfg["TEST"]["BATCH_SIZE_TOTAL"] // get_world_size()
 
     return {
         "dataset": dataset,
         "mapper": mapper,
-        "num_workers": cfg['DATALOADER']['NUM_WORKERS'],
+        "num_workers": cfg["DATALOADER"]["NUM_WORKERS"],
         "sampler": InferenceSampler(len(dataset)),
         "batch_size": batch_size,
     }
@@ -234,21 +242,25 @@ def build_detection_test_loader(
 
 
 def _train_loader_from_config(cfg, dataset_name, mapper, *, dataset=None, sampler=None):
-    cfg_datasets = cfg['DATASETS']
-    cfg_dataloader = cfg['DATALOADER']
-    
+    cfg_datasets = cfg["DATASETS"]
+    cfg_dataloader = cfg["DATALOADER"]
+
     if dataset is None:
         dataset = get_detection_dataset_dicts(
             dataset_name,
-            filter_empty=cfg_dataloader['FILTER_EMPTY_ANNOTATIONS'],
-            proposal_files=cfg_datasets['PROPOSAL_FILES_TRAIN'] if cfg_dataloader['LOAD_PROPOSALS'] else None,
+            filter_empty=cfg_dataloader["FILTER_EMPTY_ANNOTATIONS"],
+            proposal_files=(
+                cfg_datasets["PROPOSAL_FILES_TRAIN"]
+                if cfg_dataloader["LOAD_PROPOSALS"]
+                else None
+            ),
         )
 
     if mapper is None:
         mapper = DatasetMapper(cfg, True)
 
     if sampler is None:
-        sampler_name = cfg_dataloader['SAMPLER_TRAIN']
+        sampler_name = cfg_dataloader["SAMPLER_TRAIN"]
         logger = logging.getLogger(__name__)
         logger.info("Using training sampler {}".format(sampler_name))
         sampler = TrainingSampler(len(dataset))
@@ -257,15 +269,21 @@ def _train_loader_from_config(cfg, dataset_name, mapper, *, dataset=None, sample
         "dataset": dataset,
         "sampler": sampler,
         "mapper": mapper,
-        "total_batch_size": cfg['TRAIN']['BATCH_SIZE_TOTAL'],
-        "aspect_ratio_grouping": cfg_dataloader['ASPECT_RATIO_GROUPING'],
-        "num_workers": cfg_dataloader['NUM_WORKERS'],
+        "total_batch_size": cfg["TRAIN"]["BATCH_SIZE_TOTAL"],
+        "aspect_ratio_grouping": cfg_dataloader["ASPECT_RATIO_GROUPING"],
+        "num_workers": cfg_dataloader["NUM_WORKERS"],
     }
 
 
 @configurable(from_config=_train_loader_from_config)
 def build_detection_train_loader(
-    dataset, *, mapper, sampler=None, total_batch_size, aspect_ratio_grouping=True, num_workers=0
+    dataset,
+    *,
+    mapper,
+    sampler=None,
+    total_batch_size,
+    aspect_ratio_grouping=True,
+    num_workers=0,
 ):
     """
     Build a dataloader for object detection with some default features.
@@ -301,7 +319,7 @@ def build_detection_train_loader(
     if sampler is None:
         sampler = TrainingSampler(len(dataset))
     assert isinstance(sampler, torch.utils.data.sampler.Sampler)
-    
+
     return build_batch_data_loader(
         dataset,
         sampler,
@@ -314,62 +332,68 @@ def build_detection_train_loader(
 def get_config_from_name(cfg, dataset_name):
     # adjust config according to dataset
     # joint mapper for multiple part data
-    joint_part = cfg['DATASETS'].get('JOINT_PART_LOADER', False)
-    if 'sam' in dataset_name:
-        cfg.update(cfg['SAM'])
+    joint_part = cfg["DATASETS"].get("JOINT_PART_LOADER", False)
+    if "sam" in dataset_name:
+        cfg.update(cfg["SAM"])
         return cfg
-    if joint_part and ('pascal' in dataset_name or 'paco' in dataset_name or 'partimagenet' in dataset_name):
-        cfg.update(cfg['PART_ALL'])
+    if joint_part and (
+        "pascal" in dataset_name
+        or "paco" in dataset_name
+        or "partimagenet" in dataset_name
+    ):
+        cfg.update(cfg["PART_ALL"])
         return cfg
-    elif 'pascal' in dataset_name:
-        cfg.update(cfg['PSACAL_PART'])
+    elif "pascal" in dataset_name:
+        cfg.update(cfg["PSACAL_PART"])
         return cfg
-    elif 'refcoco' in dataset_name:
-        cfg.update(cfg['REF'])
+    elif "refcoco" in dataset_name:
+        cfg.update(cfg["REF"])
         return cfg
-    elif 'coco' in dataset_name:
-        if 'COCO' in cfg.keys():
-            cfg.update(cfg['COCO'])
+    elif "coco" in dataset_name:
+        if "COCO" in cfg.keys():
+            cfg.update(cfg["COCO"])
         return cfg
-    elif 'ade' in dataset_name:
-        if 'ADE20K' in cfg.keys():
-            cfg.update(cfg['ADE20K'])
+    elif "ade" in dataset_name:
+        if "ADE20K" in cfg.keys():
+            cfg.update(cfg["ADE20K"])
         return cfg
-    elif 'imagenet' in dataset_name:
-        if 'IMAGENET' in cfg.keys():
-            cfg.update(cfg['IMAGENET'])
+    elif "imagenet" in dataset_name:
+        if "IMAGENET" in cfg.keys():
+            cfg.update(cfg["IMAGENET"])
         return cfg
-    elif 'vlp' in dataset_name:
-        cfg.update(cfg['VLP'])
+    elif "vlp" in dataset_name:
+        cfg.update(cfg["VLP"])
         return cfg
-    elif 'sun' in dataset_name:
-        cfg.update(cfg['SUN'])
+    elif "sun" in dataset_name:
+        cfg.update(cfg["SUN"])
         return cfg
-    elif 'object365' in dataset_name:
-        cfg.update(cfg['OBJECT365'])
+    elif "object365" in dataset_name:
+        cfg.update(cfg["OBJECT365"])
         return cfg
-    elif 'scan' in dataset_name:
-        cfg.update(cfg['SCAN'])
+    elif "scan" in dataset_name:
+        cfg.update(cfg["SCAN"])
         return cfg
-    elif 'cityscape' in dataset_name:
-        cfg.update(cfg['CITY'])
+    elif "cityscape" in dataset_name:
+        cfg.update(cfg["CITY"])
         return cfg
-    elif 'bdd' in dataset_name:
-        cfg.update(cfg['BDD'])
+    elif "bdd" in dataset_name:
+        cfg.update(cfg["BDD"])
         return cfg
     else:
         assert False, "dataset not support."
 
 
-def build_eval_dataloader(cfg, ):
+def build_eval_dataloader(
+    cfg,
+):
     dataloaders = []
     cfg = copy.deepcopy(cfg)
-    for dataset_name in cfg['DATASETS']['TEST']:
+    for dataset_name in cfg["DATASETS"]["TEST"]:
         cfg = get_config_from_name(cfg, dataset_name)
         # adjust mapper according to dataset
-        if 'coco' in dataset_name:
+        if "coco" in dataset_name:
             mapper = CoCoInferenceDatasetMapper(cfg, False)
-        elif dataset_name == 'sam_val':
+        elif dataset_name == "sam_val":
             mapper = SamBaselineDatasetMapper(cfg, False)
         else:
             mapper = None
@@ -377,34 +401,42 @@ def build_eval_dataloader(cfg, ):
     return dataloaders
 
 
-def build_train_dataloader(cfg, ):
-    dataset_names = cfg['DATASETS']['TRAIN']
-    
+def build_train_dataloader(
+    cfg,
+):
+    dataset_names = cfg["DATASETS"]["TRAIN"]
+
     loaders = {}
     cfg = copy.deepcopy(cfg)
     for dataset_name in dataset_names:
         cfg = get_config_from_name(cfg, dataset_name)
-        mapper_name = cfg['INPUT']['DATASET_MAPPER_NAME']
+        mapper_name = cfg["INPUT"]["DATASET_MAPPER_NAME"]
         # Sam data dataset mapper
         if mapper_name == "sam":
             # print("using SamBaselineDatasetMapperJSON")
             # mapper = SamBaselineDatasetMapperJSON(cfg, True)
             mapper = SamBaselineDatasetMapper(cfg, True)
-            loaders['sam'] = build_detection_train_loader(cfg, dataset_name=dataset_name, mapper=mapper)
+            loaders["sam"] = build_detection_train_loader(
+                cfg, dataset_name=dataset_name, mapper=mapper
+            )
         else:
             mapper = None
-            loaders[dataset_name] = build_detection_train_loader(cfg, dataset_name=dataset_name, mapper=mapper)
+            loaders[dataset_name] = build_detection_train_loader(
+                cfg, dataset_name=dataset_name, mapper=mapper
+            )
     # import ipdb; ipdb.set_trace()
-    if len(loaders) == 1 and not cfg['LOADER'].get('JOINT', False):
+    if len(loaders) == 1 and not cfg["LOADER"].get("JOINT", False):
         for k, v in loaders.items():
             print("number of iterations per epoch: ", v, len(loaders[k]))
         return list(loaders.values())[0]
         # return loaders.values()['coco']
         # return loaders['coco']
     else:
-        return JointLoader(loaders, key_dataset=cfg['LOADER'].get('KEY_DATASET', 'coco'))
+        return JointLoader(
+            loaders, key_dataset=cfg["LOADER"].get("KEY_DATASET", "coco")
+        )
 
-    
+
 def build_evaluator(cfg, dataset_name, output_folder=None):
     """
     Create evaluator(s) for a given dataset.
@@ -421,19 +453,23 @@ def build_evaluator(cfg, dataset_name, output_folder=None):
     evaluator_list = []
     evaluator_type = MetadataCatalog.get(dataset_name).evaluator_type
     # for box interactive evaluation
-    if evaluator_type in ['coco_panoptic_seg_interactive_jointboxpoint']:
-        box_interactive = cfg_model_decoder_test.get('BOX_INTERACTIVE', False)
-        evaluator_list.append(JointBoxPointInteractiveEvaluator(dataset_name, output_dir=output_folder, box_interactive=box_interactive))
+    if evaluator_type in ["coco_panoptic_seg_interactive_jointboxpoint"]:
+        box_interactive = cfg_model_decoder_test.get("BOX_INTERACTIVE", False)
+        evaluator_list.append(
+            JointBoxPointInteractiveEvaluator(
+                dataset_name, output_dir=output_folder, box_interactive=box_interactive
+            )
+        )
         # evaluator_list.append(COCOPanopticEvaluator(dataset_name, output_folder))
         # evaluator_list.append(COCOEvaluator(dataset_name, output_dir=output_folder))
         # evaluator_list.append(SemSegEvaluator(dataset_name, distributed=True, output_dir=output_folder))
-    if evaluator_type == 'sam':
+    if evaluator_type == "sam":
         evaluator_list.append(COCOEvaluator("coco_2017_val", output_dir=output_folder))
 
     # instance segmentation
     if evaluator_type == "coco":
         evaluator_list.append(COCOEvaluator(dataset_name, output_dir=output_folder))
- 
+
     if len(evaluator_list) == 0:
         raise NotImplementedError(
             "no Evaluator for the dataset {} with the type {}".format(
@@ -443,20 +479,18 @@ def build_evaluator(cfg, dataset_name, output_folder=None):
     elif len(evaluator_list) == 1:
         return evaluator_list[0]
 
-
-    
     return DatasetEvaluators(evaluator_list)
 
 
 def build_optimizer(cls, cfg, model):
-    cfg_solver = cfg['SOLVER']
-    weight_decay_norm = cfg_solver['WEIGHT_DECAY_NORM']
-    weight_decay_embed = cfg_solver['WEIGHT_DECAY_EMBED']
-    weight_decay_bias = cfg_solver.get('WEIGHT_DECAY_BIAS', 0.0)
+    cfg_solver = cfg["SOLVER"]
+    weight_decay_norm = cfg_solver["WEIGHT_DECAY_NORM"]
+    weight_decay_embed = cfg_solver["WEIGHT_DECAY_EMBED"]
+    weight_decay_bias = cfg_solver.get("WEIGHT_DECAY_BIAS", 0.0)
 
     defaults = {}
-    defaults["lr"] = cfg_solver['BASE_LR']
-    defaults["weight_decay"] = cfg_solver['WEIGHT_DECAY']
+    defaults["lr"] = cfg_solver["BASE_LR"]
+    defaults["weight_decay"] = cfg_solver["WEIGHT_DECAY"]
 
     norm_module_types = (
         torch.nn.BatchNorm1d,
@@ -472,7 +506,7 @@ def build_optimizer(cls, cfg, model):
         torch.nn.LocalResponseNorm,
     )
 
-    lr_multiplier = cfg['SOLVER']['LR_MULTIPLIER']
+    lr_multiplier = cfg["SOLVER"]["LR_MULTIPLIER"]
     params: List[Dict[str, Any]] = []
     memo: Set[torch.nn.parameter.Parameter] = set()
     for module_name, module in model.named_modules():
@@ -490,12 +524,15 @@ def build_optimizer(cls, cfg, model):
                 if key in "{}.{}".format(module_name, module_param_name):
                     hyperparams["lr"] = hyperparams["lr"] * lr_mul
                     if is_main_process():
-                        logger.info("Modify Learning rate of {}: {}".format(
-                            "{}.{}".format(module_name, module_param_name), lr_mul))
+                        logger.info(
+                            "Modify Learning rate of {}: {}".format(
+                                "{}.{}".format(module_name, module_param_name), lr_mul
+                            )
+                        )
 
             if (
-                    "relative_position_bias_table" in module_param_name
-                    or "absolute_pos_embed" in module_param_name
+                "relative_position_bias_table" in module_param_name
+                or "absolute_pos_embed" in module_param_name
             ):
                 hyperparams["weight_decay"] = 0.0
             if isinstance(module, norm_module_types):
@@ -508,11 +545,11 @@ def build_optimizer(cls, cfg, model):
 
     def maybe_add_full_model_gradient_clipping(optim):
         # detectron2 doesn't have full model gradient clipping now
-        clip_norm_val = cfg_solver['CLIP_GRADIENTS']['CLIP_VALUE']
+        clip_norm_val = cfg_solver["CLIP_GRADIENTS"]["CLIP_VALUE"]
         enable = (
-                cfg_solver['CLIP_GRADIENTS']['ENABLED']
-                and cfg_solver['CLIP_GRADIENTS']['CLIP_TYPE'] == "full_model"
-                and clip_norm_val > 0.0
+            cfg_solver["CLIP_GRADIENTS"]["ENABLED"]
+            and cfg_solver["CLIP_GRADIENTS"]["CLIP_TYPE"] == "full_model"
+            and clip_norm_val > 0.0
         )
 
         class FullModelGradientClippingOptimizer(optim):
@@ -523,14 +560,14 @@ def build_optimizer(cls, cfg, model):
 
         return FullModelGradientClippingOptimizer if enable else optim
 
-    optimizer_type = cfg_solver['OPTIMIZER']
+    optimizer_type = cfg_solver["OPTIMIZER"]
     if optimizer_type == "SGD":
         optimizer = maybe_add_full_model_gradient_clipping(torch.optim.SGD)(
-            params, cfg_solver['BASE_LR'], momentum=cfg_solver['MOMENTUM']
+            params, cfg_solver["BASE_LR"], momentum=cfg_solver["MOMENTUM"]
         )
     elif optimizer_type == "ADAMW":
         optimizer = maybe_add_full_model_gradient_clipping(torch.optim.AdamW)(
-            params, cfg_solver['BASE_LR']
+            params, cfg_solver["BASE_LR"]
         )
     else:
         raise NotImplementedError(f"no optimizer type {optimizer_type}")

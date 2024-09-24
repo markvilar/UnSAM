@@ -17,6 +17,7 @@ SA1B_CATEGORIES = [
     {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "fg"},
 ]
 
+
 def _get_sa1b_instances_meta():
     thing_ids = [k["id"] for k in SA1B_CATEGORIES if k["isthing"] == 1]
     thing_colors = [k["color"] for k in SA1B_CATEGORIES if k["isthing"] == 1]
@@ -27,7 +28,7 @@ def _get_sa1b_instances_meta():
         "thing_dataset_id_to_contiguous_id": thing_dataset_id_to_contiguous_id,
         "thing_classes": thing_classes,
         "thing_colors": thing_colors,
-        "class_image_count":  [{'id': 1, 'image_count': 116986}]
+        "class_image_count": [{"id": 1, "image_count": 116986}],
     }
     return ret
 

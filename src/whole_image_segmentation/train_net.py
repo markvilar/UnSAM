@@ -8,7 +8,8 @@ try:
     # ignore ShapelyDeprecationWarning from fvcore
     from shapely.errors import ShapelyDeprecationWarning
     import warnings
-    warnings.filterwarnings('ignore', category=ShapelyDeprecationWarning)
+
+    warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 except:
     pass
 
@@ -25,7 +26,11 @@ import torch
 import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import get_cfg
-from data import MetadataCatalog, build_detection_train_loader, build_detection_test_loader
+from data import (
+    MetadataCatalog,
+    build_detection_train_loader,
+    build_detection_test_loader,
+)
 from detectron2.engine import (
     DefaultTrainer,
     default_argument_parser,
@@ -48,6 +53,7 @@ from mask2former import (
     add_maskformer2_config,
 )
 
+
 class Trainer(DefaultTrainer):
     """
     Extension of the Trainer class adapted to MaskFormer.
@@ -65,7 +71,14 @@ class Trainer(DefaultTrainer):
         if output_folder is None:
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
         evaluator_list = []
-        evaluator_list.append(COCOEvaluator(dataset_name, output_dir=output_folder, max_dets_per_image=1000, is_self_train=cfg.DATASETS.SELF_TRAIN))
+        evaluator_list.append(
+            COCOEvaluator(
+                dataset_name,
+                output_dir=output_folder,
+                max_dets_per_image=1000,
+                is_self_train=cfg.DATASETS.SELF_TRAIN,
+            )
+        )
         return DatasetEvaluators(evaluator_list)
 
     @classmethod
@@ -125,7 +138,9 @@ class Trainer(DefaultTrainer):
 
                 hyperparams = copy.copy(defaults)
                 if "backbone" in module_name:
-                    hyperparams["lr"] = hyperparams["lr"] * cfg.SOLVER.BACKBONE_MULTIPLIER
+                    hyperparams["lr"] = (
+                        hyperparams["lr"] * cfg.SOLVER.BACKBONE_MULTIPLIER
+                    )
                 if (
                     "relative_position_bias_table" in module_param_name
                     or "absolute_pos_embed" in module_param_name
@@ -149,7 +164,9 @@ class Trainer(DefaultTrainer):
 
             class FullModelGradientClippingOptimizer(optim):
                 def step(self, closure=None):
-                    all_params = itertools.chain(*[x["params"] for x in self.param_groups])
+                    all_params = itertools.chain(
+                        *[x["params"] for x in self.param_groups]
+                    )
                     torch.nn.utils.clip_grad_norm_(all_params, clip_norm_val)
                     super().step(closure=closure)
 
@@ -201,7 +218,9 @@ def setup(args):
     cfg.freeze()
     default_setup(cfg, args)
     # Setup logger for "mask_former" module
-    setup_logger(output=cfg.OUTPUT_DIR, distributed_rank=comm.get_rank(), name="mask2former")
+    setup_logger(
+        output=cfg.OUTPUT_DIR, distributed_rank=comm.get_rank(), name="mask2former"
+    )
     return cfg
 
 

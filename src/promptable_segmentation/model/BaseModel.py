@@ -23,10 +23,10 @@ class BaseModel(nn.Module):
         torch.save(self.model.state_dict(), save_path)
 
     def from_pretrained(self, load_dir):
-        state_dict = torch.load(load_dir, map_location='cpu')
-        if 'model' in state_dict:
-            state_dict=state_dict['model']
-        state_dict={k[6:]:v for k,v in state_dict.items() if k.startswith('model.')}
+        state_dict = torch.load(load_dir, map_location="cpu")
+        if "model" in state_dict:
+            state_dict = state_dict["model"]
+        state_dict = {k[6:]: v for k, v in state_dict.items() if k.startswith("model.")}
         # for k in self.model.state_dict():
         #     if k not in state_dict:
         #         assert k[:-2] in state_dict

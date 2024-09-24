@@ -21,7 +21,12 @@ from detectron2.utils.file_io import PathManager
 from detectron2.utils.logger import _log_api_usage, log_first_n
 
 from detectron2.data.catalog import DatasetCatalog, MetadataCatalog
-from detectron2.data.common import AspectRatioGroupedDataset, DatasetFromList, MapDataset, ToIterableDataset
+from detectron2.data.common import (
+    AspectRatioGroupedDataset,
+    DatasetFromList,
+    MapDataset,
+    ToIterableDataset,
+)
 from detectron2.data.dataset_mapper import DatasetMapper
 from detectron2.data.detection_utils import check_metadata_consistency
 from detectron2.data.samplers import (
@@ -100,7 +105,9 @@ def filter_images_with_few_keypoints(dataset_dicts, min_keypoints_per_image):
         )
 
     dataset_dicts = [
-        x for x in dataset_dicts if visible_keypoints_in_image(x) >= min_keypoints_per_image
+        x
+        for x in dataset_dicts
+        if visible_keypoints_in_image(x) >= min_keypoints_per_image
     ]
     num_after = len(dataset_dicts)
     logger = logging.getLogger(__name__)
@@ -146,10 +153,16 @@ def load_proposals_into_dataset(dataset_dicts, proposal_file):
     # Fetch the indexes of all proposals that are in the dataset
     # Convert image_id to str since they could be int.
     img_ids = set({str(record["image_id"]) for record in dataset_dicts})
-    id_to_index = {str(id): i for i, id in enumerate(proposals["ids"]) if str(id) in img_ids}
+    id_to_index = {
+        str(id): i for i, id in enumerate(proposals["ids"]) if str(id) in img_ids
+    }
 
     # Assuming default bbox_mode of precomputed proposals are 'XYXY_ABS'
-    bbox_mode = BoxMode(proposals["bbox_mode"]) if "bbox_mode" in proposals else BoxMode.XYXY_ABS
+    bbox_mode = (
+        BoxMode(proposals["bbox_mode"])
+        if "bbox_mode" in proposals
+        else BoxMode.XYXY_ABS
+    )
 
     for record in dataset_dicts:
         # Get the index of the proposal
@@ -196,7 +209,9 @@ def print_instances_class_histogram(dataset_dicts, class_names):
         return x
 
     data = list(
-        itertools.chain(*[[short_name(class_names[i]), int(v)] for i, v in enumerate(histogram)])
+        itertools.chain(
+            *[[short_name(class_names[i]), int(v)] for i, v in enumerate(histogram)]
+        )
     )
     total_num_instances = sum(data[1::2])
     data.extend([None] * (N_COLS - (len(data) % N_COLS)))
@@ -216,7 +231,8 @@ def print_instances_class_histogram(dataset_dicts, class_names):
         + colored(table, "cyan"),
         key="message",
     )
-    
+
+
 def get_test_detection_dataset_dicts(
     name,
 ):
@@ -232,32 +248,35 @@ def get_test_detection_dataset_dicts(
         if "coco" in name or "lvis" in name or "paco" in name:
             image_id = int(image_name.replace(".jpg", "").lstrip("0"))
         elif "sa1b" in name:
-            image_id = int(image_name.replace(".jpg", "").replace("sa_", "").lstrip("0"))
+            image_id = int(
+                image_name.replace(".jpg", "").replace("sa_", "").lstrip("0")
+            )
         else:
             image_id = int(image_name.replace(".jpg", ""))
 
-        json_list.append({
-            "file_name": os.path.join(image_path, image_name),
-            "image_id": image_id
-        })
+        json_list.append(
+            {"file_name": os.path.join(image_path, image_name), "image_id": image_id}
+        )
     return json_list
 
-def get_tsv_self_train_dataset_dicts(
-    tsv_num
-):
+
+def get_tsv_self_train_dataset_dicts(tsv_num):
     tsv_path = os.getenv("TRAIN_DATASETS", None)
     idx_list = []
     for i, f in enumerate(os.listdir(tsv_path)):
-        if not f.endswith('.lineidx'): continue
-        with open(os.path.join(tsv_path, f), 'r') as fp:
+        if not f.endswith(".lineidx"):
+            continue
+        with open(os.path.join(tsv_path, f), "r") as fp:
             lines = fp.readlines()
             tsv_name = f.replace(".lineidx", ".tsv")
-            if int(tsv_name.split(".")[0].split("-")[-1]) != tsv_num: continue
+            if int(tsv_name.split(".")[0].split("-")[-1]) != tsv_num:
+                continue
 
             for j in lines:
                 idx_list.append([tsv_name, int(j.strip().split()[0])])
 
     return idx_list
+
 
 def get_tsv_train_detection_dataset_dicts():
     """
@@ -266,16 +285,17 @@ def get_tsv_train_detection_dataset_dicts():
     tsv_path = os.getenv("TRAIN_DATASETS", None)
     idx_list = []
     for i, lineidx in enumerate(os.listdir(tsv_path)):
-        if not lineidx.endswith('.lineidx'): continue
+        if not lineidx.endswith(".lineidx"):
+            continue
         tsv_id = int(lineidx.split(".")[0].split("-")[-1])
 
-        with open(os.path.join(tsv_path, lineidx), 'r') as fp:
+        with open(os.path.join(tsv_path, lineidx), "r") as fp:
             lines = fp.readlines()
             tsv_name = lineidx.replace(".lineidx", ".tsv")
 
             for j in lines:
                 idx_list.append([tsv_name, int(j.strip().split()[0])])
-        
+
     print(f"Total images: {len(idx_list)}")
     return idx_list
 
@@ -347,10 +367,12 @@ def build_batch_data_loader(
         data_loader = torchdata.DataLoader(
             dataset,
             num_workers=num_workers,
-            collate_fn=operator.itemgetter(0),  # don't batch, but yield individual elements
+            collate_fn=operator.itemgetter(
+                0
+            ),  # don't batch, but yield individual elements
             worker_init_fn=worker_init_reset_seed,
             generator=generator,
-            **kwargs
+            **kwargs,
         )  # yield individual mapped dict
         data_loader = AspectRatioGroupedDataset(data_loader, batch_size)
         if collate_fn is None:
@@ -365,8 +387,9 @@ def build_batch_data_loader(
             collate_fn=trivial_batch_collator if collate_fn is None else collate_fn,
             worker_init_fn=worker_init_reset_seed,
             generator=generator,
-            **kwargs
+            **kwargs,
         )
+
 
 def _get_train_datasets_repeat_factors(cfg) -> Dict[str, float]:
     repeat_factors = cfg.DATASETS.TRAIN_REPEAT_FACTOR
@@ -390,12 +413,16 @@ def _build_weighted_sampler(cfg, enable_category_balance=False):
             name: get_tsv_train_detection_dataset_dicts(
                 [name],
                 filter_empty=cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS,
-                min_keypoints=cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE
-                if cfg.MODEL.KEYPOINT_ON
-                else 0,
-                proposal_files=cfg.DATASETS.PROPOSAL_FILES_TRAIN
-                if cfg.MODEL.LOAD_PROPOSALS
-                else None,
+                min_keypoints=(
+                    cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE
+                    if cfg.MODEL.KEYPOINT_ON
+                    else 0
+                ),
+                proposal_files=(
+                    cfg.DATASETS.PROPOSAL_FILES_TRAIN
+                    if cfg.MODEL.LOAD_PROPOSALS
+                    else None
+                ),
             )
             for name in cfg.DATASETS.TRAIN
         }
@@ -423,7 +450,9 @@ def _build_weighted_sampler(cfg, enable_category_balance=False):
             for dataset_dict in dataset_name_to_dicts.values()
         ]
         # flatten the category repeat factors from all datasets
-        category_repeat_factors = list(itertools.chain.from_iterable(category_repeat_factors))
+        category_repeat_factors = list(
+            itertools.chain.from_iterable(category_repeat_factors)
+        )
         category_repeat_factors = torch.tensor(category_repeat_factors)
         repeat_factors = torch.mul(category_repeat_factors, repeat_factors)
         repeat_factors = repeat_factors / torch.min(repeat_factors)
@@ -462,8 +491,10 @@ def _train_loader_from_config(cfg, mapper=None, *, dataset=None, sampler=None):
             if sampler_name == "TrainingSampler":
                 sampler = TrainingSampler(len(dataset))
             elif sampler_name == "RepeatFactorTrainingSampler":
-                repeat_factors = RepeatFactorTrainingSampler.repeat_factors_from_category_frequency(
-                    dataset, cfg.DATALOADER.REPEAT_THRESHOLD
+                repeat_factors = (
+                    RepeatFactorTrainingSampler.repeat_factors_from_category_frequency(
+                        dataset, cfg.DATALOADER.REPEAT_THRESHOLD
+                    )
                 )
                 sampler = RepeatFactorTrainingSampler(repeat_factors)
             elif sampler_name == "RandomSubsetTrainingSampler":
@@ -497,7 +528,7 @@ def build_detection_train_loader(
     aspect_ratio_grouping=True,
     num_workers=0,
     collate_fn=None,
-    **kwargs
+    **kwargs,
 ):
     """
     Build a dataloader for object detection with some default features.
@@ -541,7 +572,9 @@ def build_detection_train_loader(
     else:
         if sampler is None:
             sampler = TrainingSampler(len(dataset))
-        assert isinstance(sampler, torchdata.Sampler), f"Expect a Sampler but got {type(sampler)}"
+        assert isinstance(
+            sampler, torchdata.Sampler
+        ), f"Expect a Sampler but got {type(sampler)}"
 
     return build_batch_data_loader(
         dataset,
@@ -550,7 +583,7 @@ def build_detection_train_loader(
         aspect_ratio_grouping=False,
         num_workers=num_workers,
         collate_fn=collate_fn,
-        **kwargs
+        **kwargs,
     )
 
 
@@ -559,26 +592,27 @@ def _test_loader_from_config(cfg, dataset_name, mapper=None):
     Uses the given `dataset_name` argument (instead of the names in cfg), because the
     standard practice is to evaluate each test set individually (not combining them).
     """
-    assert isinstance(dataset_name, str), "the dataloader only supports one dataset eval at one each time"
+    assert isinstance(
+        dataset_name, str
+    ), "the dataloader only supports one dataset eval at one each time"
 
     if cfg.DATASETS.SELF_TRAIN:
-        dataset = get_tsv_self_train_dataset_dicts(
-            cfg.DATASETS.SELF_TRAIN_NUMBER
-        )
+        dataset = get_tsv_self_train_dataset_dicts(cfg.DATASETS.SELF_TRAIN_NUMBER)
         mapper = SamSelfTrainTSVDatasetMapper(cfg, is_train=False)
     else:
-        dataset = get_test_detection_dataset_dicts(
-            dataset_name)
-    
+        dataset = get_test_detection_dataset_dicts(dataset_name)
+
     if mapper is None:
         mapper = DatasetMapper(cfg, False)
     return {
         "dataset": dataset,
         "mapper": mapper,
         "num_workers": cfg.DATALOADER.NUM_WORKERS,
-        "sampler": InferenceSampler(len(dataset))
-        if not isinstance(dataset, torchdata.IterableDataset)
-        else None,
+        "sampler": (
+            InferenceSampler(len(dataset))
+            if not isinstance(dataset, torchdata.IterableDataset)
+            else None
+        ),
     }
 
 

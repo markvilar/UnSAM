@@ -10,6 +10,7 @@ from torchvision.ops.boxes import batched_nms, box_area, _batched_nms_vanilla, _
 import torchvision
 
 from typing import Any, Dict, List, Optional, Tuple
+
 # from
 # from .modeling import Sam
 # from .predictor import SamPredictor
@@ -191,7 +192,9 @@ class SemanticSamAutomaticMaskGenerator:
             )
         # Encode masks
         if self.output_mode == "coco_rle":
-            mask_data["segmentations"] = [coco_encode_rle(rle) for rle in mask_data["rles"]]
+            mask_data["segmentations"] = [
+                coco_encode_rle(rle) for rle in mask_data["rles"]
+            ]
         elif self.output_mode == "binary_mask":
             mask_data["segmentations"] = [rle_to_mask(rle) for rle in mask_data["rles"]]
         else:
@@ -220,7 +223,7 @@ class SemanticSamAutomaticMaskGenerator:
         )
 
         # Iterate over image crops
-        assert len(crop_boxes)==1
+        assert len(crop_boxes) == 1
         data = MaskData()
         for crop_box, layer_idx in zip(crop_boxes, layer_idxs):
             crop_data = self._process_crop(image, crop_box, layer_idx, orig_size)
@@ -252,30 +255,32 @@ class SemanticSamAutomaticMaskGenerator:
     ) -> MaskData:
         # Crop the image and calculate embeddings
         x0, y0, x1, y1 = crop_box
-        cropped_im = image#[y0:y1, x0:x1, :]
+        cropped_im = image  # [y0:y1, x0:x1, :]
         cropped_im_size = cropped_im.shape[-2:]
         # self.predictor.set_image(cropped_im)
 
         # Get points for this crop
         points_scale = np.array(cropped_im_size)[None, ::-1]
-        points_for_image = self.point_grids[crop_layer_idx] #* points_scale
+        points_for_image = self.point_grids[crop_layer_idx]  # * points_scale
 
         # Generate masks for this crop in batches
         data = MaskData()
-        self.enc_features=None
+        self.enc_features = None
         for (points,) in batch_iterator(self.points_per_batch, points_for_image):
-            batch_data = self._process_batch(cropped_im,points, cropped_im_size, crop_box, orig_size)
+            batch_data = self._process_batch(
+                cropped_im, points, cropped_im_size, crop_box, orig_size
+            )
             data.cat(batch_data)
             del batch_data
 
         keep_by_nms = batched_nms(
             data["boxes"].float(),
             data["iou_preds"],
-            torch.zeros_like(data["boxes"][:,0]),
+            torch.zeros_like(data["boxes"][:, 0]),
             # torch.zeros(len(data["boxes"])),  # categories
             iou_threshold=self.box_nms_thresh,
         )
-            
+
         # # Benchmarks that drove the following thresholds are at
         # # https://github.com/pytorch/vision/issues/1311#issuecomment-781329339
         # if data["boxes"].float().numel() > (16000 if data["boxes"].float().device.type == "cpu" else 80000) and not torchvision._is_tracing():
@@ -302,22 +307,37 @@ class SemanticSamAutomaticMaskGenerator:
         orig_h, orig_w = orig_size
 
         data = {"image": images, "height": orig_h, "width": orig_w}
-        points=torch.tensor(points,dtype=torch.float).to(images.device)
-        points = torch.cat([points, points.new_tensor([[0.005, 0.005]]).repeat(len(points), 1)], dim=-1)
-        data['targets'] = [dict()]
-        data['targets'][0]['points']=points
-        data['targets'][0]['pb']=points.new_tensor([0.]*len(points))
+        points = torch.tensor(points, dtype=torch.float).to(images.device)
+        points = torch.cat(
+            [points, points.new_tensor([[0.005, 0.005]]).repeat(len(points), 1)], dim=-1
+        )
+        data["targets"] = [dict()]
+        data["targets"][0]["points"] = points
+        data["targets"][0]["pb"] = points.new_tensor([0.0] * len(points))
         batch_inputs = [data]
         if self.enc_features is None:
-            masks, iou_preds,mask_features,multi_scale_features= self.predictor.model.evaluate_demo(batch_inputs,None,None,return_features=True, level=self.level)
-            self.enc_features=(mask_features,multi_scale_features)
+            masks, iou_preds, mask_features, multi_scale_features = (
+                self.predictor.model.evaluate_demo(
+                    batch_inputs, None, None, return_features=True, level=self.level
+                )
+            )
+            self.enc_features = (mask_features, multi_scale_features)
         else:
-            masks, iou_preds= self.predictor.model.evaluate_demo(batch_inputs,None,None,self.enc_features[0],self.enc_features[1], level=self.level)
+            masks, iou_preds = self.predictor.model.evaluate_demo(
+                batch_inputs,
+                None,
+                None,
+                self.enc_features[0],
+                self.enc_features[1],
+                level=self.level,
+            )
         # import ipdb; ipdb.set_trace()
         data = MaskData(
             masks=masks,
             iou_preds=iou_preds.flatten(),
-            points=torch.as_tensor(points[:,None].repeat(1,len(self.level), 1).view(-1,4)),
+            points=torch.as_tensor(
+                points[:, None].repeat(1, len(self.level), 1).view(-1, 4)
+            ),
         )
         del masks
         # Filter by predicted IoU
@@ -337,7 +357,9 @@ class SemanticSamAutomaticMaskGenerator:
         data["boxes"] = batched_mask_to_box(data["masks"])
 
         # Filter boxes that touch crop boundaries
-        keep_mask = ~is_box_near_crop_edge(data["boxes"], crop_box, [0, 0, orig_w, orig_h])
+        keep_mask = ~is_box_near_crop_edge(
+            data["boxes"], crop_box, [0, 0, orig_w, orig_h]
+        )
         if not torch.all(keep_mask):
             data.filter(keep_mask)
 

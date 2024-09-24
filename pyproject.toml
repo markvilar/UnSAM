@@ -11,8 +11,9 @@ authors = ["XuDong Wang", "Jingfeng Yang", "Trevor Darrell"]
 readme = "README.md"
 packages = [
   { include = "divide_and_conquer", from = "src" }, 
-  { include = "promptable_segmentation", from = "src"  }, 
-  { include = "whole_image_segmentation", from = "src" },
+  # NOTE: Leave these out until the dependencies down below are resolved
+  # { include = "promptable_segmentation", from = "src"  }, 
+  # { include = "whole_image_segmentation", from = "src" },
 ]
 package-mode = true
 
@@ -40,6 +41,13 @@ torch = "^2.4.1"
 torchvision = "^0.19.1"
 torchaudio = "^2.4.1"
 
+# NOTE: These repositories only seem to be relevant for the following packages:
+#       - promptable_segmentation
+#       - whole_image_segmentation
+
+# panopticapi = { git = "https://github.com/cocodataset/panopticapi.git" }
+# semantic-sam = { git = "https://github.com/UX-Decoder/Semantic-SAM.git" }
+# detectron2-xyz = {git = "https://github.com/facebookresearch/detectron2", rev = "ebe8b45"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.0"

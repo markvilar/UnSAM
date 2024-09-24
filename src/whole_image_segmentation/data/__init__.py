@@ -15,4 +15,3 @@ from . import datasets
 from detectron2.data import samplers  # isort:skip
 
 __all__ = [k for k in globals().keys() if not k.startswith("_")]
-

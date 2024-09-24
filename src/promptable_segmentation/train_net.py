@@ -8,7 +8,8 @@ Semantic-SAM training and inference script. based on MaskDINO and OpenSeed.
 try:
     from shapely.errors import ShapelyDeprecationWarning
     import warnings
-    warnings.filterwarnings('ignore', category=ShapelyDeprecationWarning)
+
+    warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 except:
     pass
 
@@ -43,7 +44,7 @@ from detectron2.engine import (
     launch,
     create_ddp_model,
     AMPTrainer,
-    SimpleTrainer
+    SimpleTrainer,
 )
 import weakref
 
@@ -51,13 +52,14 @@ from model import build_model
 from model.BaseModel import BaseModel
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level = logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 
 class Trainer(DefaultTrainer):
     """
     Extension of the Trainer class adapted to MaskFormer.
     """
+
     def __init__(self, cfg, wandb_run=None):
         super(DefaultTrainer, self).__init__()
         logger = logging.getLogger("detectron2")
@@ -79,17 +81,17 @@ class Trainer(DefaultTrainer):
 
         # add model EMA
         kwargs = {
-            'trainer': weakref.proxy(self),
+            "trainer": weakref.proxy(self),
         }
         # kwargs.update(model_ema.may_get_ema_checkpointer(cfg, model)) TODO: release ema training for large models
         self.checkpointer = DetectionCheckpointer(
             # Assume you want to save checkpoints together with logs/statistics
             model,
-            cfg['OUTPUT_DIR'],
+            cfg["OUTPUT_DIR"],
             **kwargs,
         )
         self.start_iter = 0
-        self.max_iter = cfg['SOLVER']['MAX_ITER']
+        self.max_iter = cfg["SOLVER"]["MAX_ITER"]
         self.cfg = cfg
 
         self.register_hooks(self.build_hooks())
@@ -97,7 +99,7 @@ class Trainer(DefaultTrainer):
         self.checkpointer = DetectionCheckpointer(
             # Assume you want to save checkpoints together with logs/statistics
             model,
-            cfg['OUTPUT_DIR'],
+            cfg["OUTPUT_DIR"],
             **kwargs,
         )
         # TODO: release GPU cluster submit scripts based on submitit for multi-node training
@@ -123,10 +125,16 @@ class Trainer(DefaultTrainer):
         # This is not always the best: if checkpointing has a different frequency,
         # some checkpoints may have more precise statistics than others.
         if comm.is_main_process():
-            ret.append(hooks.PeriodicCheckpointer(self.checkpointer, cfg.SOLVER.CHECKPOINT_PERIOD, file_prefix="10k"))
+            ret.append(
+                hooks.PeriodicCheckpointer(
+                    self.checkpointer, cfg.SOLVER.CHECKPOINT_PERIOD, file_prefix="10k"
+                )
+            )
 
         def test_and_save_results():
-            self._last_eval_results = self.test(self.cfg, self.model, wandb_run=self.wandb_run)
+            self._last_eval_results = self.test(
+                self.cfg, self.model, wandb_run=self.wandb_run
+            )
             return self._last_eval_results
 
         # Do evaluation after checkpointer, because then if it fails,
@@ -159,12 +167,16 @@ class Trainer(DefaultTrainer):
 
     @classmethod
     def build_train_loader(cls, cfg):
-        return build_train_dataloader(cfg, )
+        return build_train_dataloader(
+            cfg,
+        )
 
     @classmethod
     def build_test_loader(cls, cfg, dataset_name):
         # import ipdb; ipdb.set_trace()
-        loader = build_eval_dataloader(cfg, )
+        loader = build_eval_dataloader(
+            cfg,
+        )
         return loader
 
     @classmethod
@@ -177,14 +189,14 @@ class Trainer(DefaultTrainer):
 
     @classmethod
     def build_optimizer(cls, cfg, model):
-        cfg_solver = cfg['SOLVER']
-        weight_decay_norm = cfg_solver['WEIGHT_DECAY_NORM']
-        weight_decay_embed = cfg_solver['WEIGHT_DECAY_EMBED']
-        weight_decay_bias = cfg_solver.get('WEIGHT_DECAY_BIAS', 0.0)
+        cfg_solver = cfg["SOLVER"]
+        weight_decay_norm = cfg_solver["WEIGHT_DECAY_NORM"]
+        weight_decay_embed = cfg_solver["WEIGHT_DECAY_EMBED"]
+        weight_decay_bias = cfg_solver.get("WEIGHT_DECAY_BIAS", 0.0)
 
         defaults = {}
-        defaults["lr"] = cfg_solver['BASE_LR']
-        defaults["weight_decay"] = cfg_solver['WEIGHT_DECAY']
+        defaults["lr"] = cfg_solver["BASE_LR"]
+        defaults["weight_decay"] = cfg_solver["WEIGHT_DECAY"]
 
         norm_module_types = (
             torch.nn.BatchNorm1d,
@@ -200,7 +212,7 @@ class Trainer(DefaultTrainer):
             torch.nn.LocalResponseNorm,
         )
 
-        lr_multiplier = cfg['SOLVER']['LR_MULTIPLIER']
+        lr_multiplier = cfg["SOLVER"]["LR_MULTIPLIER"]
 
         params: List[Dict[str, Any]] = []
         memo: Set[torch.nn.parameter.Parameter] = set()
@@ -219,12 +231,16 @@ class Trainer(DefaultTrainer):
                     if key in "{}.{}".format(module_name, module_param_name):
                         hyperparams["lr"] = hyperparams["lr"] * lr_mul
                         if comm.is_main_process():
-                            logger.info("Modify Learning rate of {}: {}".format(
-                                "{}.{}".format(module_name, module_param_name), lr_mul))
+                            logger.info(
+                                "Modify Learning rate of {}: {}".format(
+                                    "{}.{}".format(module_name, module_param_name),
+                                    lr_mul,
+                                )
+                            )
 
                 if (
-                        "relative_position_bias_table" in module_param_name
-                        or "absolute_pos_embed" in module_param_name
+                    "relative_position_bias_table" in module_param_name
+                    or "absolute_pos_embed" in module_param_name
                 ):
                     hyperparams["weight_decay"] = 0.0
                 if isinstance(module, norm_module_types):
@@ -237,29 +253,31 @@ class Trainer(DefaultTrainer):
 
         def maybe_add_full_model_gradient_clipping(optim):
             # detectron2 doesn't have full model gradient clipping now
-            clip_norm_val = cfg_solver['CLIP_GRADIENTS']['CLIP_VALUE']
+            clip_norm_val = cfg_solver["CLIP_GRADIENTS"]["CLIP_VALUE"]
             enable = (
-                    cfg_solver['CLIP_GRADIENTS']['ENABLED']
-                    and cfg_solver['CLIP_GRADIENTS']['CLIP_TYPE'] == "full_model"
-                    and clip_norm_val > 0.0
+                cfg_solver["CLIP_GRADIENTS"]["ENABLED"]
+                and cfg_solver["CLIP_GRADIENTS"]["CLIP_TYPE"] == "full_model"
+                and clip_norm_val > 0.0
             )
 
             class FullModelGradientClippingOptimizer(optim):
                 def step(self, closure=None):
-                    all_params = itertools.chain(*[x["params"] for x in self.param_groups])
+                    all_params = itertools.chain(
+                        *[x["params"] for x in self.param_groups]
+                    )
                     torch.nn.utils.clip_grad_norm_(all_params, clip_norm_val)
                     super().step(closure=closure)
 
             return FullModelGradientClippingOptimizer if enable else optim
 
-        optimizer_type = cfg_solver['OPTIMIZER']
+        optimizer_type = cfg_solver["OPTIMIZER"]
         if optimizer_type == "SGD":
             optimizer = maybe_add_full_model_gradient_clipping(torch.optim.SGD)(
-                params, cfg_solver['BASE_LR'], momentum=cfg_solver['MOMENTUM']
+                params, cfg_solver["BASE_LR"], momentum=cfg_solver["MOMENTUM"]
             )
         elif optimizer_type == "ADAMW":
             optimizer = maybe_add_full_model_gradient_clipping(torch.optim.AdamW)(
-                params, cfg_solver['BASE_LR']
+                params, cfg_solver["BASE_LR"]
             )
         else:
             raise NotImplementedError(f"no optimizer type {optimizer_type}")
@@ -279,13 +297,15 @@ class Trainer(DefaultTrainer):
         # cfg.defrost()
 
         assert (
-                cfg.SOLVER.IMS_PER_BATCH % old_world_size == 0
+            cfg.SOLVER.IMS_PER_BATCH % old_world_size == 0
         ), "Invalid REFERENCE_WORLD_SIZE in config!"
         scale = num_workers / old_world_size
         bs = cfg.SOLVER.IMS_PER_BATCH = int(round(cfg.SOLVER.IMS_PER_BATCH * scale))
         lr = cfg.SOLVER.BASE_LR = cfg.SOLVER.BASE_LR * scale
         max_iter = cfg.SOLVER.MAX_ITER = int(round(cfg.SOLVER.MAX_ITER / scale))
-        warmup_iter = cfg.SOLVER.WARMUP_ITERS = int(round(cfg.SOLVER.WARMUP_ITERS / scale))
+        warmup_iter = cfg.SOLVER.WARMUP_ITERS = int(
+            round(cfg.SOLVER.WARMUP_ITERS / scale)
+        )
         cfg.SOLVER.STEPS = tuple(int(round(s / scale)) for s in cfg.SOLVER.STEPS)
         cfg.TEST.EVAL_PERIOD = int(round(cfg.TEST.EVAL_PERIOD / scale))
         cfg.SOLVER.CHECKPOINT_PERIOD = int(round(cfg.SOLVER.CHECKPOINT_PERIOD / scale))
@@ -302,9 +322,10 @@ class Trainer(DefaultTrainer):
         from utils.misc import hook_metadata, hook_switcher, hook_opt
         from detectron2.utils.logger import log_every_n_seconds
         import datetime
+
         # build dataloade
         dataloaders = cls.build_test_loader(cfg, dataset_name=None)
-        dataset_names = cfg['DATASETS']['TEST']
+        dataset_names = cfg["DATASETS"]["TEST"]
         model = model.eval().cuda()
         model_without_ddp = model
         if not type(model) == BaseModel:
@@ -312,14 +333,14 @@ class Trainer(DefaultTrainer):
 
         for dataloader, dataset_name in zip(dataloaders, dataset_names):
             # build evaluator
-            evaluator = build_evaluator(cfg, dataset_name, cfg['OUTPUT_DIR'])
+            evaluator = build_evaluator(cfg, dataset_name, cfg["OUTPUT_DIR"])
             evaluator.reset()
             with torch.no_grad():
                 # setup task
-                if 'sam' in dataset_names:
-                    task = 'multi_granularity'
+                if "sam" in dataset_names:
+                    task = "multi_granularity"
                 else:
-                    task = 'interactive'
+                    task = "interactive"
 
                 hook_switcher(model_without_ddp, dataset_name)
                 # setup timer
@@ -341,7 +362,7 @@ class Trainer(DefaultTrainer):
                     start_compute_time = time.perf_counter()
 
                     # forward
-                    with torch.autocast(device_type='cuda', dtype=torch.float16):
+                    with torch.autocast(device_type="cuda", dtype=torch.float16):
                         # import ipdb; ipdb.set_trace()
                         outputs = model(batch, inference_task=task)
 
@@ -355,10 +376,16 @@ class Trainer(DefaultTrainer):
                     data_seconds_per_iter = total_data_time / iters_after_start
                     compute_seconds_per_iter = total_compute_time / iters_after_start
                     eval_seconds_per_iter = total_eval_time / iters_after_start
-                    total_seconds_per_iter = (time.perf_counter() - start_time) / iters_after_start
+                    total_seconds_per_iter = (
+                        time.perf_counter() - start_time
+                    ) / iters_after_start
 
-                    if comm.is_main_process() and (idx >= num_warmup * 2 or compute_seconds_per_iter > 5):
-                        eta = datetime.timedelta(seconds=int(total_seconds_per_iter * (total - idx - 1)))
+                    if comm.is_main_process() and (
+                        idx >= num_warmup * 2 or compute_seconds_per_iter > 5
+                    ):
+                        eta = datetime.timedelta(
+                            seconds=int(total_seconds_per_iter * (total - idx - 1))
+                        )
                         log_every_n_seconds(
                             logging.INFO,
                             (
@@ -377,12 +404,13 @@ class Trainer(DefaultTrainer):
             results = evaluator.evaluate()
             if wandb_run and torch.distributed.get_rank() == 0:
                 res_run = {}
-                for k, v in results['maxIoU'].items():
-                    res_run["maxIoU/"+k] = v
-                for k, v in results['oracleIoU'].items():
-                    res_run["oracleIoU/"+k] = v
+                for k, v in results["maxIoU"].items():
+                    res_run["maxIoU/" + k] = v
+                for k, v in results["oracleIoU"].items():
+                    res_run["oracleIoU/" + k] = v
                 wandb_run.log(res_run)
         model = model.train().cuda()
+
 
 def setup(args):
     """
@@ -393,7 +421,9 @@ def setup(args):
     cfg = LazyConfig.apply_overrides(cfg, args.opts)
     # cfg.freeze()
     default_setup(cfg, args)
-    setup_logger(output=cfg.OUTPUT_DIR, distributed_rank=comm.get_rank(), name="maskdino")
+    setup_logger(
+        output=cfg.OUTPUT_DIR, distributed_rank=comm.get_rank(), name="maskdino"
+    )
     return cfg
 
 
@@ -412,9 +442,10 @@ def main(args=None):
         return res
 
     trainer = Trainer(cfg)
-    if len(args.lang_weight)>0:
+    if len(args.lang_weight) > 0:
         # load language weight for semantic
         import copy
+
         weight = copy.deepcopy(trainer.cfg.MODEL.WEIGHTS)
         trainer.cfg.MODEL.WEIGHTS = args.lang_weight
         print("load original language language weight!!!!!!")
@@ -422,21 +453,22 @@ def main(args=None):
         trainer.cfg.MODEL.WEIGHTS = weight
     print("load pretrained model weight!!!!!!")
     trainer.resume_or_load(resume=args.resume)
-    
+
     return trainer.train()
-                
+
+
 if __name__ == "__main__":
     # main()
     parser = default_argument_parser()
-    parser.add_argument('--eval_only', action='store_true')
-    parser.add_argument('--eval-path')
-    parser.add_argument('--eval-num', type=int)
-    parser.add_argument('--EVAL_FLAG', type=int, default=1)
-    parser.add_argument('--lang_weight', type=str, default='')
+    parser.add_argument("--eval_only", action="store_true")
+    parser.add_argument("--eval-path")
+    parser.add_argument("--eval-num", type=int)
+    parser.add_argument("--EVAL_FLAG", type=int, default=1)
+    parser.add_argument("--lang_weight", type=str, default="")
 
     args = parser.parse_args()
     port = random.randint(1000, 20000)
-    args.dist_url = 'tcp://127.0.0.1:' + str(port)
+    args.dist_url = "tcp://127.0.0.1:" + str(port)
     print("Command Line Args:", args)
     print("pwd:", os.getcwd())
 

@@ -11,14 +11,21 @@ from torchvision import transforms
 import dino
 import cv2
 
-from .coco_annotator import create_image_info, create_annotation_info, output, category_info
+from .coco_annotator import (
+    create_image_info,
+    create_annotation_info,
+    output,
+    category_info,
+)
 from .iterative_merging import iterative_merge
 from .cascadepsp import postprocess
 from .detectron2.config import get_cfg
 from .engine.defaults import DefaultPredictor
 
 import warnings
+
 warnings.filterwarnings("ignore")
+
 
 def add_cutler_config(cfg):
     cfg.DATALOADER.COPY_PASTE = False
@@ -39,6 +46,7 @@ def add_cutler_config(cfg):
 
     cfg.TEST.NO_SEGM = False
 
+
 def setup_cfg(args):
     # load config from file and command-line arguments
     cfg = get_cfg()
@@ -47,15 +55,18 @@ def setup_cfg(args):
     cfg.merge_from_list(args.opts)
     # Disable the use of SyncBN normalization when running on a CPU
     # SyncBN is not supported on CPU and can cause errors, so we switch to BN instead
-    if cfg.MODEL.DEVICE == 'cpu' and cfg.MODEL.RESNETS.NORM == 'SyncBN':
+    if cfg.MODEL.DEVICE == "cpu" and cfg.MODEL.RESNETS.NORM == "SyncBN":
         cfg.MODEL.RESNETS.NORM = "BN"
         cfg.MODEL.FPN.NORM = "BN"
     # Set score_threshold for builtin models
     cfg.MODEL.RETINANET.SCORE_THRESH_TEST = args.confidence_threshold
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = args.confidence_threshold
-    cfg.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = args.confidence_threshold
+    cfg.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = (
+        args.confidence_threshold
+    )
     cfg.freeze()
     return cfg
+
 
 def get_parser():
     parser = argparse.ArgumentParser(description="")
@@ -67,8 +78,12 @@ def get_parser():
     # backbone args
     parser.add_argument("--patch-size", default=8, type=int)
     parser.add_argument("--feature-dim", default=768, type=int)
-    parser.add_argument("--backbone-size", default='base', type=str)
-    parser.add_argument("--backbone-url", default="https://dl.fbaipublicfiles.com/dino/dino_vitbase8_pretrain/dino_vitbase8_pretrain.pth", type=str)
+    parser.add_argument("--backbone-size", default="base", type=str)
+    parser.add_argument(
+        "--backbone-url",
+        default="https://dl.fbaipublicfiles.com/dino/dino_vitbase8_pretrain/dino_vitbase8_pretrain.pth",
+        type=str,
+    )
 
     parser.add_argument("--input-dir", type=str)
     parser.add_argument("--output-dir", type=str, default="pseudo_masks_output")
@@ -100,6 +115,7 @@ def get_parser():
     )
     return parser
 
+
 def NMS(pool, threshold, step):
     # score is the area percent
     sorted_masks = sorted(pool, key=lambda mask: area(mask), reverse=True)
@@ -107,28 +123,34 @@ def NMS(pool, threshold, step):
 
     for i in range(len(sorted_masks)):
         if i in masks_kept_indices:
-            for j in range(i+1, min(len(sorted_masks), i+step)):
+            for j in range(i + 1, min(len(sorted_masks), i + step)):
                 if iou(sorted_masks[i], sorted_masks[j]) > threshold:
                     masks_kept_indices.remove(j) if j in masks_kept_indices else None
 
     return [sorted_masks[i] for i in masks_kept_indices]
 
+
 def area(mask):
     return np.count_nonzero(mask) / mask.size
+
 
 def iou(mask1, mask2):
     intersection = np.count_nonzero(np.logical_and(mask1, mask2))
     union = np.count_nonzero(mask1) + np.count_nonzero(mask2) - intersection
-    if union == 0: return 0
+    if union == 0:
+        return 0
     return intersection / union
 
+
 def coverage(mask1, mask2):
-    if np.count_nonzero(mask1) == 0: return 0
+    if np.count_nonzero(mask1) == 0:
+        return 0
     return np.count_nonzero(np.logical_and(mask1, mask2)) / np.count_nonzero(mask1)
+
 
 def resize_mask(bipartition_masked, I_size):
     # do preprocess the mask before put into the refiner
-    bipartition_masked = Image.fromarray(np.uint8(bipartition_masked*255))
+    bipartition_masked = Image.fromarray(np.uint8(bipartition_masked * 255))
     bipartition_masked = np.asarray(bipartition_masked.resize(I_size))
     bipartition_masked = bipartition_masked.astype(np.uint8)
     upper = np.max(bipartition_masked)
@@ -138,6 +160,7 @@ def resize_mask(bipartition_masked, I_size):
     bipartition_masked[bipartition_masked <= thresh] = lower
 
     return bipartition_masked
+
 
 def smallest_square_containing_mask(mask):
     rows = np.any(mask, axis=1)
@@ -150,13 +173,17 @@ def smallest_square_containing_mask(mask):
     xmin, xmax = np.where(cols)[0][[0, -1]]
     return ymin, ymax, xmin, xmax
 
-ToTensor = transforms.Compose([transforms.ToTensor(),
-                               transforms.Normalize(
-                                (0.485, 0.456, 0.406),
-                                (0.229, 0.224, 0.225)),])
+
+ToTensor = transforms.Compose(
+    [
+        transforms.ToTensor(),
+        transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+    ]
+)
+
 
 def generate_feature_matrix(backbone, image, feat_dim, feat_num):
-    if next(backbone.parameters()).device == torch.device('cpu'):
+    if next(backbone.parameters()).device == torch.device("cpu"):
         tensor = ToTensor(image).unsqueeze(0)
         feat = backbone(tensor)[0]
     else:
@@ -167,18 +194,19 @@ def generate_feature_matrix(backbone, image, feat_dim, feat_num):
     feat_reshaped = feat_reshaped.permute(1, 2, 0)
     return feat_reshaped
 
+
 def main():
     args = get_parser().parse_args()
     print(args)
-    refiner = refine.Refiner(device='cuda:0')
+    refiner = refine.Refiner(device="cuda:0")
 
     # divide-and-conquer algorithm
     if args.preprocess:
         if not args.start_id:
             args.start_id = 0
-        if not args.end_id: 
+        if not args.end_id:
             args.end_id = len(os.listdir(args.input_dir))
-        if not os.path.exists(args.output_dir): 
+        if not os.path.exists(args.output_dir):
             os.makedirs(args.output_dir)
 
         # load the CutLER model
@@ -186,7 +214,13 @@ def main():
         predictor = DefaultPredictor(cfg)
 
         # load DINO backbone
-        backbone = dino.ViTFeat(args.backbone_url, args.feature_dim, args.backbone_size, 'k', args.patch_size)
+        backbone = dino.ViTFeat(
+            args.backbone_url,
+            args.feature_dim,
+            args.backbone_size,
+            "k",
+            args.patch_size,
+        )
         backbone.eval()
         backbone.cuda().to(torch.float16)
 
@@ -196,7 +230,8 @@ def main():
         for image_name in tqdm(os.scandir(args.input_dir)):
             image_name = image_name.name
             cnt += 1
-            if cnt < args.start_id or cnt >= args.end_id: continue
+            if cnt < args.start_id or cnt >= args.end_id:
+                continue
 
             # coco format annotator initialization
             divide_conquer_masks = []
@@ -205,7 +240,9 @@ def main():
             # save path initialization
             image_id = int(image_name.replace(".jpg", "").replace("sa_", ""))
             save_path = f"{args.output_dir}/{image_name.replace('.jpg', '.json')}"
-            assert not os.path.exists(save_path), "an annotation already exists in this path"
+            assert not os.path.exists(
+                save_path
+            ), "an annotation already exists in this path"
 
             # Image import
             image_path = os.path.join(args.input_dir, image_name)
@@ -217,7 +254,7 @@ def main():
             divide_masks_tensor = predictions["instances"].get("pred_masks")
             divide_masks = []
             for i in range(divide_masks_tensor.shape[0]):
-                divide_masks.append(divide_masks_tensor[i,:,:].cpu().numpy())
+                divide_masks.append(divide_masks_tensor[i, :, :].cpu().numpy())
             divide_conquer_masks.extend(divide_masks)
 
             # Conquer phase
@@ -225,22 +262,35 @@ def main():
                 conquer_masks = []
                 # find the bounding box and resize the original images
                 ymin, ymax, xmin, xmax = smallest_square_containing_mask(divide_mask)
-                if (ymax-ymin) <= 0 or (xmax-xmin) <= 0: continue
+                if (ymax - ymin) <= 0 or (xmax - xmin) <= 0:
+                    continue
                 local_image = image[ymin:ymax, xmin:xmax]
-                resized_local_image = Image.fromarray(local_image).resize([args.local_size, args.local_size])
+                resized_local_image = Image.fromarray(local_image).resize(
+                    [args.local_size, args.local_size]
+                )
 
-                feature_matrix = generate_feature_matrix(backbone, resized_local_image, args.feature_dim, args.local_size//args.patch_size)
+                feature_matrix = generate_feature_matrix(
+                    backbone,
+                    resized_local_image,
+                    args.feature_dim,
+                    args.local_size // args.patch_size,
+                )
                 merging_masks = iterative_merge(feature_matrix, args.thetas)
-                
+
                 for layer in merging_masks:
-                    if layer.shape[0] == 0: continue
+                    if layer.shape[0] == 0:
+                        continue
 
                     for i in range(layer.shape[0]):
                         mask = layer[i, :, :]
-                        mask = resize_mask(mask, [xmax-xmin, ymax-ymin])
+                        mask = resize_mask(mask, [xmax - xmin, ymax - ymin])
                         mask = (mask > 0.5 * 255).astype(int)
 
-                        if coverage(mask, divide_mask[ymin:ymax, xmin:xmax]) <= args.kept_thresh: continue
+                        if (
+                            coverage(mask, divide_mask[ymin:ymax, xmin:xmax])
+                            <= args.kept_thresh
+                        ):
+                            continue
                         enlarged_mask = np.zeros_like(divide_mask)
                         enlarged_mask[ymin:ymax, xmin:xmax] = mask
                         conquer_masks.append(enlarged_mask)
@@ -249,40 +299,43 @@ def main():
                 divide_conquer_masks.extend(conquer_masks)
 
             # save masks of each image in COCO format
-            # create coco-style image info 
-            image_info = create_image_info(
-                image_id, "{}".format(image_name), (H, W, 3))
+            # create coco-style image info
+            image_info = create_image_info(image_id, "{}".format(image_name), (H, W, 3))
             output["image"] = image_info
 
             for m in divide_conquer_masks:
-                # create coco-style annotation info 
+                # create coco-style annotation info
                 annotation_info = create_annotation_info(
-                    segmentation_id, image_id, category_info, m.astype(np.uint8), None)
+                    segmentation_id, image_id, category_info, m.astype(np.uint8), None
+                )
                 if annotation_info is not None:
                     output["annotations"].append(annotation_info)
                     segmentation_id += 1
 
-            with open(save_path, 'w') as output_json_file:
+            with open(save_path, "w") as output_json_file:
                 json.dump(output, output_json_file, indent=2)
 
     # postprocess CascadePSP
     if args.postprocess:
         if not args.start_id:
             args.start_id = 0
-        if not args.end_id: 
+        if not args.end_id:
             args.end_id = len(os.listdir(args.output_dir))
-        for ann_name in tqdm(os.listdir(args.output_dir)[args.start_id:args.end_id]):
+        for ann_name in tqdm(os.listdir(args.output_dir)[args.start_id : args.end_id]):
             annotation_path = os.path.join(args.output_dir, ann_name)
             annotations = json.load(open(annotation_path))
-            
-            image_path = os.path.join(args.input_dir, ann_name.replace('json', 'jpg'))
+
+            image_path = os.path.join(args.input_dir, ann_name.replace("json", "jpg"))
             image = cv2.imread(image_path)
-            
+
             refined_annotations = postprocess(args, refiner, annotations, image)
             # 'p_' stands for annotation after being postprocessed, which will be saved under the same folder as preprocessed annotations
             output_path = os.path.join(args.output_dir, f"p_{ann_name}")
-            with open(output_path, 'w', encoding='utf-8') as output_json_file:
-                json.dump(refined_annotations, output_json_file, ensure_ascii=False, indent=2)
+            with open(output_path, "w", encoding="utf-8") as output_json_file:
+                json.dump(
+                    refined_annotations, output_json_file, ensure_ascii=False, indent=2
+                )
+
 
 if __name__ == "__main__":
     main()

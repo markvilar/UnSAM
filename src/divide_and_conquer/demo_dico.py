@@ -10,10 +10,9 @@ from torchvision import transforms
 import dino
 import cv2
 
-from coco_annotator import create_image_info, create_annotation_info, output, category_info
+from coco_annotator import create_annotation_info, output, category_info
 from iterative_merging import iterative_merge
 from cascadepsp import postprocess
-from detectron2.config import get_cfg
 from engine.defaults import DefaultPredictor
 from pycocotools import mask as mask_utils
 from detectron2.utils.colormap import random_color
@@ -21,7 +20,9 @@ from detectron2.utils.colormap import random_color
 from divide_conquer import setup_cfg
 
 import warnings
+
 warnings.filterwarnings("ignore")
+
 
 def get_parser():
     parser = argparse.ArgumentParser(description="")
@@ -33,8 +34,12 @@ def get_parser():
     # backbone args
     parser.add_argument("--patch-size", default=8, type=int)
     parser.add_argument("--feature-dim", default=768, type=int)
-    parser.add_argument("--backbone-size", default='base', type=str)
-    parser.add_argument("--backbone-url", default="https://dl.fbaipublicfiles.com/dino/dino_vitbase8_pretrain/dino_vitbase8_pretrain.pth", type=str)
+    parser.add_argument("--backbone-size", default="base", type=str)
+    parser.add_argument(
+        "--backbone-url",
+        default="https://dl.fbaipublicfiles.com/dino/dino_vitbase8_pretrain/dino_vitbase8_pretrain.pth",
+        type=str,
+    )
 
     parser.add_argument("--input", type=str)
     parser.add_argument("--output", type=str, default="pseudo_masks_output")
@@ -66,6 +71,7 @@ def get_parser():
     )
     return parser
 
+
 def NMS(pool, threshold, step):
     # score is the area percent
     sorted_masks = sorted(pool, key=lambda mask: area(mask), reverse=True)
@@ -73,28 +79,34 @@ def NMS(pool, threshold, step):
 
     for i in range(len(sorted_masks)):
         if i in masks_kept_indices:
-            for j in range(i+1, min(len(sorted_masks), i+step)):
+            for j in range(i + 1, min(len(sorted_masks), i + step)):
                 if iou(sorted_masks[i], sorted_masks[j]) > threshold:
                     masks_kept_indices.remove(j) if j in masks_kept_indices else None
 
     return [sorted_masks[i] for i in masks_kept_indices]
 
+
 def area(mask):
     return np.count_nonzero(mask) / mask.size
+
 
 def iou(mask1, mask2):
     intersection = np.count_nonzero(np.logical_and(mask1, mask2))
     union = np.count_nonzero(mask1) + np.count_nonzero(mask2) - intersection
-    if union == 0: return 0
+    if union == 0:
+        return 0
     return intersection / union
 
+
 def coverage(mask1, mask2):
-    if np.count_nonzero(mask1) == 0: return 0
+    if np.count_nonzero(mask1) == 0:
+        return 0
     return np.count_nonzero(np.logical_and(mask1, mask2)) / np.count_nonzero(mask1)
+
 
 def resize_mask(bipartition_masked, I_size):
     # do preprocess the mask before put into the refiner
-    bipartition_masked = Image.fromarray(np.uint8(bipartition_masked*255))
+    bipartition_masked = Image.fromarray(np.uint8(bipartition_masked * 255))
     bipartition_masked = np.asarray(bipartition_masked.resize(I_size))
     bipartition_masked = bipartition_masked.astype(np.uint8)
     upper = np.max(bipartition_masked)
@@ -104,6 +116,7 @@ def resize_mask(bipartition_masked, I_size):
     bipartition_masked[bipartition_masked <= thresh] = lower
 
     return bipartition_masked
+
 
 def smallest_square_containing_mask(mask):
     rows = np.any(mask, axis=1)
@@ -116,13 +129,17 @@ def smallest_square_containing_mask(mask):
     xmin, xmax = np.where(cols)[0][[0, -1]]
     return ymin, ymax, xmin, xmax
 
-ToTensor = transforms.Compose([transforms.ToTensor(),
-                               transforms.Normalize(
-                                (0.485, 0.456, 0.406),
-                                (0.229, 0.224, 0.225)),])
+
+ToTensor = transforms.Compose(
+    [
+        transforms.ToTensor(),
+        transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+    ]
+)
+
 
 def generate_feature_matrix(backbone, image, feat_dim, feat_num):
-    if next(backbone.parameters()).device == torch.device('cpu'):
+    if next(backbone.parameters()).device == torch.device("cpu"):
         tensor = ToTensor(image).unsqueeze(0)
         feat = backbone(tensor)[0]
     else:
@@ -133,11 +150,13 @@ def generate_feature_matrix(backbone, image, feat_dim, feat_num):
     feat_reshaped = feat_reshaped.permute(1, 2, 0)
     return feat_reshaped
 
-def vis_mask(input, mask, mask_color) :
+
+def vis_mask(input, mask, mask_color):
     fg = mask > 0.5
     rgb = np.copy(input)
     rgb[fg] = (rgb[fg] * 0.5 + np.array(mask_color) * 0.5).astype(np.uint8)
     return Image.fromarray(rgb)
+
 
 def save_image(I, pool, output):
     # the visualization strategy is small masks on top of large masks
@@ -146,16 +165,20 @@ def save_image(I, pool, output):
     i = 0
     for mask in tqdm(pool):
         already_painted += mask.astype(np.uint8)
-        overlap = (already_painted == 2)
+        overlap = already_painted == 2
         if np.sum(overlap) != 0:
-            input = Image.fromarray(overlap[:, :, np.newaxis] * np.copy(I) + np.logical_not(overlap)[:, :, np.newaxis] * np.copy(input))
+            input = Image.fromarray(
+                overlap[:, :, np.newaxis] * np.copy(I)
+                + np.logical_not(overlap)[:, :, np.newaxis] * np.copy(input)
+            )
             already_painted -= overlap
         input = vis_mask(input, mask, random_color(rgb=True))
     input.save(output)
 
+
 def main():
     args = get_parser().parse_args()
-    refiner = refine.Refiner(device='cuda:0')
+    refiner = refine.Refiner(device="cuda:0")
 
     # divide-and-conquer algorithm
     # load the CutLER model
@@ -163,11 +186,13 @@ def main():
     predictor = DefaultPredictor(cfg)
 
     # load DINO backbone
-    backbone = dino.ViTFeat(args.backbone_url, args.feature_dim, args.backbone_size, 'k', args.patch_size)
+    backbone = dino.ViTFeat(
+        args.backbone_url, args.feature_dim, args.backbone_size, "k", args.patch_size
+    )
     backbone.eval()
-    if cfg.MODEL.DEVICE == 'cpu':
+    if cfg.MODEL.DEVICE == "cpu":
         assert not args.postprocess, "postprocess needs gpu"
-        backbone.to('cpu')
+        backbone.to("cpu")
     else:
         backbone.cuda().to(torch.float16)
 
@@ -187,7 +212,7 @@ def main():
     divide_masks_tensor = predictions["instances"].get("pred_masks")
     divide_masks = []
     for i in range(divide_masks_tensor.shape[0]):
-        divide_masks.append(divide_masks_tensor[i,:,:].cpu().numpy())
+        divide_masks.append(divide_masks_tensor[i, :, :].cpu().numpy())
     divide_conquer_masks.extend(divide_masks)
 
     # Conquer phase
@@ -195,22 +220,35 @@ def main():
         conquer_masks = []
         # find the bounding box and resize the original images
         ymin, ymax, xmin, xmax = smallest_square_containing_mask(divide_mask)
-        if (ymax-ymin) <= 0 or (xmax-xmin) <= 0: continue
+        if (ymax - ymin) <= 0 or (xmax - xmin) <= 0:
+            continue
         local_image = image[ymin:ymax, xmin:xmax]
-        resized_local_image = Image.fromarray(local_image).resize([args.local_size, args.local_size])
+        resized_local_image = Image.fromarray(local_image).resize(
+            [args.local_size, args.local_size]
+        )
 
-        feature_matrix = generate_feature_matrix(backbone, resized_local_image, args.feature_dim, args.local_size//args.patch_size)
+        feature_matrix = generate_feature_matrix(
+            backbone,
+            resized_local_image,
+            args.feature_dim,
+            args.local_size // args.patch_size,
+        )
         merging_masks = iterative_merge(feature_matrix, args.thetas)
-        
+
         for layer in merging_masks:
-            if layer.shape[0] == 0: continue
+            if layer.shape[0] == 0:
+                continue
 
             for i in range(layer.shape[0]):
                 mask = layer[i, :, :]
-                mask = resize_mask(mask, [xmax-xmin, ymax-ymin])
+                mask = resize_mask(mask, [xmax - xmin, ymax - ymin])
                 mask = (mask > 0.5 * 255).astype(int)
 
-                if coverage(mask, divide_mask[ymin:ymax, xmin:xmax]) <= args.kept_thresh: continue
+                if (
+                    coverage(mask, divide_mask[ymin:ymax, xmin:xmax])
+                    <= args.kept_thresh
+                ):
+                    continue
                 enlarged_mask = np.zeros_like(divide_mask)
                 enlarged_mask[ymin:ymax, xmin:xmax] = mask
                 conquer_masks.append(enlarged_mask)
@@ -219,25 +257,27 @@ def main():
         divide_conquer_masks.extend(conquer_masks)
 
     for m in divide_conquer_masks:
-        # create coco-style annotation info 
+        # create coco-style annotation info
         annotation_info = create_annotation_info(
-            segmentation_id, 0, category_info, m.astype(np.uint8), None)
+            segmentation_id, 0, category_info, m.astype(np.uint8), None
+        )
         if annotation_info is not None:
             output["annotations"].append(annotation_info)
             segmentation_id += 1
-    
+
     # postprocess CascadePSP
-    if args.postprocess:    
+    if args.postprocess:
         refined_annotations = postprocess(args, refiner, output, image)
         output["annotations"] = refined_annotations["annotations"]
-    
+
     visualized_masks = []
     for mask_encoded in output["annotations"]:
-        mask = mask_utils.decode(mask_encoded['segmentation'])
+        mask = mask_utils.decode(mask_encoded["segmentation"])
         visualized_masks.append(mask)
     sorted_masks = sorted(visualized_masks, key=lambda m: area(m), reverse=True)
 
     save_image(image, sorted_masks, args.output)
+
 
 if __name__ == "__main__":
     main()

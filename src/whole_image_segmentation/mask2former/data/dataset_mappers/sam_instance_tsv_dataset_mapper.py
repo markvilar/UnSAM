@@ -22,8 +22,13 @@ import cv2
 __all__ = ["SamInstanceTSVDatasetMapper"]
 
 _EXIF_ORIENT = 274
-_M_RGB2YUV = [[0.299, 0.587, 0.114], [-0.14713, -0.28886, 0.436], [0.615, -0.51499, -0.10001]]
+_M_RGB2YUV = [
+    [0.299, 0.587, 0.114],
+    [-0.14713, -0.28886, 0.436],
+    [0.615, -0.51499, -0.10001],
+]
 _M_YUV2RGB = [[1.0, 0.0, 1.13983], [1.0, -0.39465, -0.58060], [1.0, 2.03211, 0.0]]
+
 
 def _apply_exif_orientation(image):
     """
@@ -71,6 +76,7 @@ def _apply_exif_orientation(image):
         return image.transpose(method)
     return image
 
+
 def convert_PIL_to_numpy(image, format):
     """
     Convert PIL image to numpy array of target format.
@@ -103,12 +109,14 @@ def convert_PIL_to_numpy(image, format):
 
     return image
 
+
 def img_from_base64(imagestring):
     jpgbytestring = base64.b64decode(imagestring)
     image = BytesIO(jpgbytestring)
     image = Image.open(image).convert("RGB")
     image = _apply_exif_orientation(image)
     return convert_PIL_to_numpy(image, "RGB")
+
 
 def convert_coco_poly_to_mask(segmentations, height, width):
     masks = []
@@ -126,11 +134,14 @@ def convert_coco_poly_to_mask(segmentations, height, width):
         masks = torch.zeros((0, height, width), dtype=torch.uint8)
     return masks
 
+
 def area(mask):
     assert type(mask) is np.ndarray
     assert len(np.unique(mask)) <= 2
-    if mask.size == 0: return 0
+    if mask.size == 0:
+        return 0
     return np.count_nonzero(mask) / mask.size
+
 
 def build_transform_gen(cfg, is_train):
     """
@@ -154,13 +165,15 @@ def build_transform_gen(cfg, is_train):
             )
         )
 
-    augmentation.extend([
-        #T.ResizeScale(
-        #     min_scale=min_scale, max_scale=max_scale, target_height=image_size, target_width=image_size
-        # ),
-        T.FixedSizeCrop(crop_size=(image_size, image_size)),
-        #T.ResizeShortestEdge(image_size)
-    ])
+    augmentation.extend(
+        [
+            # T.ResizeScale(
+            #     min_scale=min_scale, max_scale=max_scale, target_height=image_size, target_width=image_size
+            # ),
+            T.FixedSizeCrop(crop_size=(image_size, image_size)),
+            # T.ResizeShortestEdge(image_size)
+        ]
+    )
 
     return augmentation
 
@@ -198,12 +211,14 @@ class SamInstanceTSVDatasetMapper:
         """
         self.tfm_gens = tfm_gens
         logging.getLogger(__name__).info(
-            "[SamInstanceTSVDatasetMapper] Full TransformGens used in training: {}".format(str(self.tfm_gens))
+            "[SamInstanceTSVDatasetMapper] Full TransformGens used in training: {}".format(
+                str(self.tfm_gens)
+            )
         )
 
         self.img_format = image_format
         self.is_train = is_train
-    
+
     @classmethod
     def from_config(cls, cfg, is_train=True):
         # Build augmentation
@@ -224,13 +239,13 @@ class SamInstanceTSVDatasetMapper:
         Returns:
             dict: a format that builtin models in detectron2 accept
         """
-        tsv_dir= os.getenv("TRAIN_DATASETS", None)
+        tsv_dir = os.getenv("TRAIN_DATASETS", None)
         tsv_name = idx[0]
         lineidx = idx[1]
 
-        with open(os.path.join(tsv_dir, tsv_name), 'r') as fp:
+        with open(os.path.join(tsv_dir, tsv_name), "r") as fp:
             fp.seek(lineidx)
-            tsv_info = [s.strip() for s in fp.readline().split('\t')]
+            tsv_info = [s.strip() for s in fp.readline().split("\t")]
 
         dataset_dict = json.loads(tsv_info[1])
         image = img_from_base64(tsv_info[-1])
@@ -245,10 +260,12 @@ class SamInstanceTSVDatasetMapper:
         # polygon_annotations = []
         for ann in dataset_dict["annotations"]:
             ann["category_id"] = 0
-        
+
         # limit number of selected masks
         if len(dataset_dict["annotations"]) > 500:
-            dataset_dict["annotations"] = np.random.choice(dataset_dict["annotations"], 500, replace=False)
+            dataset_dict["annotations"] = np.random.choice(
+                dataset_dict["annotations"], 500, replace=False
+            )
 
         # del dataset_dict['info']
         # del dataset_dict['licenses']
@@ -264,15 +281,19 @@ class SamInstanceTSVDatasetMapper:
         image, transforms = T.apply_transform_gens(self.tfm_gens, image)
         # the crop transformation has default padding value 0 for segmentation
         padding_mask = transforms.apply_segmentation(padding_mask)
-        padding_mask = ~ padding_mask.astype(bool)
+        padding_mask = ~padding_mask.astype(bool)
 
         image_shape = image.shape[:2]  # h, w
 
         # Pytorch's dataloader is efficient on torch.Tensor due to shared-memory,
         # but not efficient on large generic data structures due to the use of pickle & mp.Queue.
         # Therefore it's important to use torch.Tensor.
-        dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))
-        dataset_dict["padding_mask"] = torch.as_tensor(np.ascontiguousarray(padding_mask))
+        dataset_dict["image"] = torch.as_tensor(
+            np.ascontiguousarray(image.transpose(2, 0, 1))
+        )
+        dataset_dict["padding_mask"] = torch.as_tensor(
+            np.ascontiguousarray(padding_mask)
+        )
 
         if not self.is_train:
             # USER: Modify this if you want to keep them for some reason.
@@ -295,7 +316,9 @@ class SamInstanceTSVDatasetMapper:
                 if obj.get("iscrowd", 0) == 0
             ]
 
-            instances = utils.annotations_to_instances(annos, image_shape, mask_format="bitmask")
+            instances = utils.annotations_to_instances(
+                annos, image_shape, mask_format="bitmask"
+            )
 
             # After transforms such as cropping are applied, the bounding box may no longer
             # tightly bound the object. As an example, imagine a triangle object
@@ -311,7 +334,7 @@ class SamInstanceTSVDatasetMapper:
             h, w = instances.image_size
             # image_size_xyxy = torch.as_tensor([w, h, w, h], dtype=torch.float)
 
-            if hasattr(instances, 'gt_masks'):
+            if hasattr(instances, "gt_masks"):
                 gt_masks = instances.gt_masks
                 # gt_masks = convert_coco_poly_to_mask(gt_masks.polygons, h, w)
                 gt_masks = gt_masks.tensor

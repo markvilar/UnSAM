@@ -6,8 +6,12 @@ from . import modeling
 from .config import add_maskformer2_config
 
 # dataset loading
-from .data.dataset_mappers.sam_instance_tsv_dataset_mapper import SamInstanceTSVDatasetMapper
-from .data.dataset_mappers.sam_instance_tsv_self_train_dataset_mapper import SamSelfTrainTSVDatasetMapper
+from .data.dataset_mappers.sam_instance_tsv_dataset_mapper import (
+    SamInstanceTSVDatasetMapper,
+)
+from .data.dataset_mappers.sam_instance_tsv_self_train_dataset_mapper import (
+    SamSelfTrainTSVDatasetMapper,
+)
 
 # models
 from .maskformer_model import MaskFormer

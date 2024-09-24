@@ -28,6 +28,7 @@ _PREDEFINED_SPLITS_UNSAM_SA1B["unsam_sa1b"] = {
     "unsam_sa1b_val": ("sa1b/images", "sa1b/annotations/sa1b_val.json"),
 }
 
+
 def register_all_unsam_sa1b(root):
     for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_UNSAM_SA1B.items():
         for key, (image_root, json_file) in splits_per_dataset.items():
@@ -39,10 +40,12 @@ def register_all_unsam_sa1b(root):
                 os.path.join(root, image_root),
             )
 
+
 _PREDEFINED_SPLITS_UNSAM_ADE20K = {}
 _PREDEFINED_SPLITS_UNSAM_ADE20K["unsam_ade20k"] = {
     "unsam_ade20k_val": ("ade/images", "ade/annotations/ade_val.json"),
 }
+
 
 def register_all_unsam_ade20k(root):
     for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_UNSAM_ADE20K.items():
@@ -55,10 +58,12 @@ def register_all_unsam_ade20k(root):
                 os.path.join(root, image_root),
             )
 
+
 _PREDEFINED_SPLITS_UNSAM_ENTITY = {}
 _PREDEFINED_SPLITS_UNSAM_ENTITY["unsam_entity"] = {
     "unsam_entity_val": ("entity/images", "entity/annotations/entityseg_val.json"),
 }
+
 
 def register_all_unsam_entity(root):
     for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_UNSAM_ENTITY.items():
@@ -71,10 +76,12 @@ def register_all_unsam_entity(root):
                 os.path.join(root, image_root),
             )
 
+
 _PREDEFINED_SPLITS_UNSAM_PACO = {}
 _PREDEFINED_SPLITS_UNSAM_PACO["unsam_paco"] = {
     "unsam_paco_val": ("paco/images", "paco/annotations/paco_val.json"),
 }
+
 
 def register_all_unsam_paco(root):
     for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_UNSAM_PACO.items():
@@ -87,13 +94,21 @@ def register_all_unsam_paco(root):
                 os.path.join(root, image_root),
             )
 
+
 _PREDEFINED_SPLITS_UNSAM_PARTIMAGENET = {}
-_PREDEFINED_SPLITS_UNSAM_PARTIMAGENET ["unsam_partimagenet"] = {
-    "unsam_partimagenet_val": ("partimagenet/images", "partimagenet/annotations/partimagenet_val.json"),
+_PREDEFINED_SPLITS_UNSAM_PARTIMAGENET["unsam_partimagenet"] = {
+    "unsam_partimagenet_val": (
+        "partimagenet/images",
+        "partimagenet/annotations/partimagenet_val.json",
+    ),
 }
 
+
 def register_all_unsam_partimagenet(root):
-    for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_UNSAM_PARTIMAGENET.items():
+    for (
+        dataset_name,
+        splits_per_dataset,
+    ) in _PREDEFINED_SPLITS_UNSAM_PARTIMAGENET.items():
         for key, (image_root, json_file) in splits_per_dataset.items():
             # Assume pre-defined datasets live in `./datasets`.
             register_coco_instances(
@@ -103,10 +118,12 @@ def register_all_unsam_partimagenet(root):
                 os.path.join(root, image_root),
             )
 
+
 _PREDEFINED_SPLITS_UNSAM_COCO = {}
-_PREDEFINED_SPLITS_UNSAM_COCO ["unsam_coco"] = {
+_PREDEFINED_SPLITS_UNSAM_COCO["unsam_coco"] = {
     "unsam_coco_val": ("coco/val2017", "coco/annotations/instances_val2017.json"),
 }
+
 
 def register_all_unsam_coco(root):
     for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_UNSAM_COCO.items():
@@ -119,10 +136,12 @@ def register_all_unsam_coco(root):
                 os.path.join(root, image_root),
             )
 
+
 _PREDEFINED_SPLITS_UNSAM_LVIS = {}
-_PREDEFINED_SPLITS_UNSAM_LVIS ["unsam_lvis"] = {
+_PREDEFINED_SPLITS_UNSAM_LVIS["unsam_lvis"] = {
     "unsam_lvis_val": ("lvis/images", "lvis/annotations/lvis_v1_val.json"),
 }
+
 
 def register_all_unsam_lvis(root):
     for dataset_name, splits_per_dataset in _PREDEFINED_SPLITS_UNSAM_LVIS.items():

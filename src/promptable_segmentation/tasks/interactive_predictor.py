@@ -5,11 +5,14 @@ from utils.visualizer import Visualizer
 from typing import Tuple
 from PIL import Image
 from detectron2.data import MetadataCatalog
-metadata = MetadataCatalog.get('coco_2017_train_panoptic')
+
+metadata = MetadataCatalog.get("coco_2017_train_panoptic")
 
 
 class SemanticSAMPredictor:
-    def __init__(self, model, thresh=0.5, text_size=640, hole_scale=100, island_scale=100):
+    def __init__(
+        self, model, thresh=0.5, text_size=640, hole_scale=100, island_scale=100
+    ):
         """
         thresh: iou thresh to filter low confidence objects
         text_size: resize the input image short edge for the model to process
@@ -43,11 +46,11 @@ class SemanticSAMPredictor:
             # point = point[:, [1, 0]]
             point = torch.cat([point, point.new_tensor([[0.005, 0.005]])], dim=-1)
 
-        self.point = point[:, :2].clone()*(torch.tensor([width, height]).to(point))
+        self.point = point[:, :2].clone() * (torch.tensor([width, height]).to(point))
 
-        data['targets'] = [dict()]
-        data['targets'][0]['points'] = point
-        data['targets'][0]['pb'] = point.new_tensor([0.])
+        data["targets"] = [dict()]
+        data["targets"][0]["points"] = point
+        data["targets"][0]["pb"] = point.new_tensor([0.0])
 
         batch_inputs = [data]
         masks, ious = self.model.model.evaluate_demo(batch_inputs)
@@ -60,13 +63,15 @@ class SemanticSAMPredictor:
         ious = ious[0, 0]
         ids = torch.argsort(ious, descending=True)
 
-        text_res = ''
+        text_res = ""
         mask_ls = []
         ious_res = []
         areas = []
-        for i, (pred_masks_pos, iou) in enumerate(zip(pred_masks_poses[ids], ious[ids])):
+        for i, (pred_masks_pos, iou) in enumerate(
+            zip(pred_masks_poses[ids], ious[ids])
+        ):
             iou = round(float(iou), 2)
-            texts = f'{iou}'
+            texts = f"{iou}"
             mask = (pred_masks_pos > 0.0).cpu().numpy()
             area = mask.sum()
             conti = False
@@ -83,12 +88,16 @@ class SemanticSAMPredictor:
             ious_res.append(iou)
             mask_ls.append(mask)
             areas.append(area)
-            mask, _ = self.remove_small_regions(mask, int(self.hole_scale), mode="holes")
-            mask, _ = self.remove_small_regions(mask, int(self.island_scale), mode="islands")
+            mask, _ = self.remove_small_regions(
+                mask, int(self.hole_scale), mode="holes"
+            )
+            mask, _ = self.remove_small_regions(
+                mask, int(self.island_scale), mode="islands"
+            )
             mask = (mask).astype(float)
             out_txt = texts
             visual = Visualizer(image_ori, metadata=metadata)
-            color = [0., 0., 1.0]
+            color = [0.0, 0.0, 1.0]
             demo = visual.draw_binary_mask(mask, color=color, text=texts)
             res = demo.get_image()
             point_x0 = max(0, int(self.point[0, 0]) - 3)
@@ -99,7 +108,7 @@ class SemanticSAMPredictor:
             res[point_y0:point_y1, point_x0:point_x1, 1] = 0
             res[point_y0:point_y1, point_x0:point_x1, 2] = 0
             reses.append(Image.fromarray(res))
-            text_res = text_res + ';' + out_txt
+            text_res = text_res + ";" + out_txt
         ids = list(torch.argsort(torch.tensor(areas), descending=False))
         ids = [int(i) for i in ids]
 
@@ -113,7 +122,7 @@ class SemanticSAMPredictor:
 
     @staticmethod
     def remove_small_regions(
-            mask: np.ndarray, area_thresh: float, mode: str
+        mask: np.ndarray, area_thresh: float, mode: str
     ) -> Tuple[np.ndarray, bool]:
         """
         Removes small disconnected regions and holes in a mask. Returns the

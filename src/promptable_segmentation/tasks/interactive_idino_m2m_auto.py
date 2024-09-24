@@ -16,31 +16,52 @@ import matplotlib.pyplot as plt
 import cv2
 import io
 from .automatic_mask_generator import SemanticSamAutomaticMaskGenerator
-metadata = MetadataCatalog.get('coco_2017_train_panoptic')
 
-def interactive_infer_image(model, image,level,all_classes,all_parts, thresh,text_size,hole_scale,island_scale,semantic, refimg=None, reftxt=None, audio_pth=None, video_pth=None):
+metadata = MetadataCatalog.get("coco_2017_train_panoptic")
+
+
+def interactive_infer_image(
+    model,
+    image,
+    level,
+    all_classes,
+    all_parts,
+    thresh,
+    text_size,
+    hole_scale,
+    island_scale,
+    semantic,
+    refimg=None,
+    reftxt=None,
+    audio_pth=None,
+    video_pth=None,
+):
     t = []
     t.append(transforms.Resize(int(text_size), interpolation=Image.BICUBIC))
     transform1 = transforms.Compose(t)
     image_ori = transform1(image)
 
     image_ori = np.asarray(image_ori)
-    images = torch.from_numpy(image_ori.copy()).permute(2,0,1).cuda()
+    images = torch.from_numpy(image_ori.copy()).permute(2, 0, 1).cuda()
 
-    mask_generator = SemanticSamAutomaticMaskGenerator(model,points_per_side=80, # 32
-            pred_iou_thresh=0.7, # 0.88, eval-0.35
-            stability_score_thresh=0.7, # 0.92, eval-0.05
-            min_mask_region_area=15, # 10, eval-15
-            level=level,
-        )
+    mask_generator = SemanticSamAutomaticMaskGenerator(
+        model,
+        points_per_side=80,  # 32
+        pred_iou_thresh=0.7,  # 0.88, eval-0.35
+        stability_score_thresh=0.7,  # 0.92, eval-0.05
+        min_mask_region_area=15,  # 10, eval-15
+        level=level,
+    )
 
     outputs = mask_generator.generate(images)
 
-    fig=plt.figure(figsize=(10, 10))
+    fig = plt.figure(figsize=(10, 10))
     plt.imshow(image_ori)
     show_anns(outputs)
     fig.canvas.draw()
-    im=Image.frombytes('RGB', fig.canvas.get_width_height(), fig.canvas.tostring_rgb())
+    im = Image.frombytes(
+        "RGB", fig.canvas.get_width_height(), fig.canvas.tostring_rgb()
+    )
     return im
 
 
@@ -70,18 +91,19 @@ def remove_small_regions(
     mask = np.isin(regions, fill_labels)
     return mask, True
 
+
 def show_anns(anns):
     if len(anns) == 0:
         return
-    sorted_anns = sorted(anns, key=(lambda x: x['area']), reverse=True)
+    sorted_anns = sorted(anns, key=(lambda x: x["area"]), reverse=True)
     ax = plt.gca()
     ax.set_autoscale_on(False)
     polygons = []
     color = []
     for ann in sorted_anns:
-        m = ann['segmentation']
+        m = ann["segmentation"]
         img = np.ones((m.shape[0], m.shape[1], 3))
         color_mask = np.random.random((1, 3)).tolist()[0]
         for i in range(3):
-            img[:,:,i] = color_mask[i]
-        ax.imshow(np.dstack((img, m*0.35)))
+            img[:, :, i] = color_mask[i]
+        ax.imshow(np.dstack((img, m * 0.35)))

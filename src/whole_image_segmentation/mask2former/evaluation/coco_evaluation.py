@@ -101,7 +101,9 @@ class COCOEvaluator(DatasetEvaluator):
         self.is_self_train = is_self_train
 
         if use_fast_impl and (COCOeval_opt is COCOeval):
-            self._logger.info("Fast COCO eval is not built. Falling back to official COCO eval.")
+            self._logger.info(
+                "Fast COCO eval is not built. Falling back to official COCO eval."
+            )
             use_fast_impl = False
         self._use_fast_impl = use_fast_impl
 
@@ -141,7 +143,9 @@ class COCOEvaluator(DatasetEvaluator):
 
             cache_path = os.path.join(output_dir, f"{dataset_name}_coco_format.json")
             self._metadata.json_file = cache_path
-            convert_to_coco_json(dataset_name, cache_path, allow_cached=allow_cached_coco)
+            convert_to_coco_json(
+                dataset_name, cache_path, allow_cached=allow_cached_coco
+            )
 
         json_file = PathManager.get_local_path(self._metadata.json_file)
         with contextlib.redirect_stdout(io.StringIO()):
@@ -170,7 +174,9 @@ class COCOEvaluator(DatasetEvaluator):
 
             if "instances" in output:
                 instances = output["instances"].to(self._cpu_device)
-                prediction["instances"] = instances_to_coco_json(instances, input["image_id"])
+                prediction["instances"] = instances_to_coco_json(
+                    instances, input["image_id"]
+                )
             if "proposals" in output:
                 prediction["proposals"] = output["proposals"].to(self._cpu_device)
             if len(prediction) > 1:
@@ -225,10 +231,15 @@ class COCOEvaluator(DatasetEvaluator):
 
         # unmap the category ids for COCO
         if hasattr(self._metadata, "thing_dataset_id_to_contiguous_id"):
-            dataset_id_to_contiguous_id = self._metadata.thing_dataset_id_to_contiguous_id
+            dataset_id_to_contiguous_id = (
+                self._metadata.thing_dataset_id_to_contiguous_id
+            )
             all_contiguous_ids = list(dataset_id_to_contiguous_id.values())
             num_classes = len(all_contiguous_ids)
-            assert min(all_contiguous_ids) == 0 and max(all_contiguous_ids) == num_classes - 1
+            assert (
+                min(all_contiguous_ids) == 0
+                and max(all_contiguous_ids) == num_classes - 1
+            )
 
             reverse_id_mapping = {v: k for k, v in dataset_id_to_contiguous_id.items()}
             for result in coco_results:
@@ -293,7 +304,9 @@ class COCOEvaluator(DatasetEvaluator):
             for prediction in predictions:
                 ids.append(prediction["image_id"])
                 boxes.append(prediction["proposals"].proposal_boxes.tensor.numpy())
-                objectness_logits.append(prediction["proposals"].objectness_logits.numpy())
+                objectness_logits.append(
+                    prediction["proposals"].objectness_logits.numpy()
+                )
 
             proposal_data = {
                 "boxes": boxes,
@@ -301,7 +314,9 @@ class COCOEvaluator(DatasetEvaluator):
                 "ids": ids,
                 "bbox_mode": bbox_mode,
             }
-            with PathManager.open(os.path.join(self._output_dir, "box_proposals.pkl"), "wb") as f:
+            with PathManager.open(
+                os.path.join(self._output_dir, "box_proposals.pkl"), "wb"
+            ) as f:
                 pickle.dump(proposal_data, f)
 
         if not self._do_evaluation:
@@ -313,7 +328,9 @@ class COCOEvaluator(DatasetEvaluator):
         areas = {"all": "", "small": "s", "medium": "m", "large": "l"}
         for limit in [100, 1000]:
             for area, suffix in areas.items():
-                stats = _evaluate_box_proposals(predictions, self._coco_api, area=area, limit=limit)
+                stats = _evaluate_box_proposals(
+                    predictions, self._coco_api, area=area, limit=limit
+                )
                 key = "AR{}@{:d}".format(suffix, limit)
                 res[key] = float(stats["ar"].item() * 100)
         self._logger.info("Proposal metrics: \n" + create_small_table(res))
@@ -345,11 +362,14 @@ class COCOEvaluator(DatasetEvaluator):
 
         # the standard metrics
         results = {
-            metric: float(coco_eval.stats[idx] * 100 if coco_eval.stats[idx] >= 0 else "nan")
+            metric: float(
+                coco_eval.stats[idx] * 100 if coco_eval.stats[idx] >= 0 else "nan"
+            )
             for idx, metric in enumerate(metrics)
         }
         self._logger.info(
-            "Evaluation results for {}: \n".format(iou_type) + create_small_table(results)
+            "Evaluation results for {}: \n".format(iou_type)
+            + create_small_table(results)
         )
         if not np.isfinite(sum(results.values())):
             self._logger.info("Some metrics cannot be computed and is shown as NaN.")
@@ -374,7 +394,9 @@ class COCOEvaluator(DatasetEvaluator):
         # tabulate it
         N_COLS = min(6, len(results_per_category) * 2)
         results_flatten = list(itertools.chain(*results_per_category))
-        results_2d = itertools.zip_longest(*[results_flatten[i::N_COLS] for i in range(N_COLS)])
+        results_2d = itertools.zip_longest(
+            *[results_flatten[i::N_COLS] for i in range(N_COLS)]
+        )
         table = tabulate(
             results_2d,
             tablefmt="pipe",
@@ -452,7 +474,9 @@ def instances_to_coco_json(instances, img_id):
 
 # inspired from Detectron:
 # https://github.com/facebookresearch/Detectron/blob/a6a835f5b8208c45d0dce217ce9bbda915f44df7/detectron/datasets/json_dataset_evaluator.py#L255 # noqa
-def _evaluate_box_proposals(dataset_predictions, coco_api, thresholds=None, area="all", limit=None):
+def _evaluate_box_proposals(
+    dataset_predictions, coco_api, thresholds=None, area="all", limit=None
+):
     """
     Evaluate detection proposal recall metrics. This function is a much
     faster alternative to the official COCO API recall evaluation code. However,
@@ -471,14 +495,14 @@ def _evaluate_box_proposals(dataset_predictions, coco_api, thresholds=None, area
         "512-inf": 7,
     }
     area_ranges = [
-        [0 ** 2, 1e5 ** 2],  # all
-        [0 ** 2, 32 ** 2],  # small
-        [32 ** 2, 96 ** 2],  # medium
-        [96 ** 2, 1e5 ** 2],  # large
-        [96 ** 2, 128 ** 2],  # 96-128
-        [128 ** 2, 256 ** 2],  # 128-256
-        [256 ** 2, 512 ** 2],  # 256-512
-        [512 ** 2, 1e5 ** 2],
+        [0**2, 1e5**2],  # all
+        [0**2, 32**2],  # small
+        [32**2, 96**2],  # medium
+        [96**2, 1e5**2],  # large
+        [96**2, 128**2],  # 96-128
+        [128**2, 256**2],  # 128-256
+        [256**2, 512**2],  # 256-512
+        [512**2, 1e5**2],
     ]  # 512-inf
     assert area in areas, "Unknown area range: {}".format(area)
     area_range = area_ranges[areas[area]]
@@ -541,7 +565,9 @@ def _evaluate_box_proposals(dataset_predictions, coco_api, thresholds=None, area
         # append recorded iou coverage level
         gt_overlaps.append(_gt_overlaps)
     gt_overlaps = (
-        torch.cat(gt_overlaps, dim=0) if len(gt_overlaps) else torch.zeros(0, dtype=torch.float32)
+        torch.cat(gt_overlaps, dim=0)
+        if len(gt_overlaps)
+        else torch.zeros(0, dtype=torch.float32)
     )
     gt_overlaps, _ = torch.sort(gt_overlaps)
 
@@ -587,7 +613,9 @@ def _evaluate_predictions_on_coco(
             c.pop("bbox", None)
 
     coco_dt = coco_gt.loadRes(coco_results)
-    coco_eval = (COCOeval_opt if use_fast_impl else COCOeval)(coco_gt, coco_dt, iou_type)
+    coco_eval = (COCOeval_opt if use_fast_impl else COCOeval)(
+        coco_gt, coco_dt, iou_type
+    )
     # For COCO, the default max_dets_per_image is [1, 10, 100].
     if max_dets_per_image is None:
         max_dets_per_image = [1, 10, 100]  # Default from COCOEval
@@ -608,7 +636,9 @@ def _evaluate_predictions_on_coco(
     if iou_type == "keypoints":
         # Use the COCO default keypoint OKS sigmas unless overrides are specified
         if kpt_oks_sigmas:
-            assert hasattr(coco_eval.params, "kpt_oks_sigmas"), "pycocotools is too old!"
+            assert hasattr(
+                coco_eval.params, "kpt_oks_sigmas"
+            ), "pycocotools is too old!"
             coco_eval.params.kpt_oks_sigmas = np.array(kpt_oks_sigmas)
         # COCOAPI requires every detection and every gt to have keypoints, so
         # we just take the first entry from both
@@ -622,7 +652,7 @@ def _evaluate_predictions_on_coco(
             "They have to agree with each other. For meaning of OKS, please refer to "
             "http://cocodataset.org/#keypoints-eval."
         )
-    
+
     coco_eval.params.useCats = 0
     coco_eval.params.imgIds = coco_dt.getImgIds()
 

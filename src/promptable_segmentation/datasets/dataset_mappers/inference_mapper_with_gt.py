@@ -103,7 +103,9 @@ class CoCoInferenceDatasetMapper:
         }
 
         if cfg.MODEL.KEYPOINT_ON:
-            ret["keypoint_hflip_indices"] = utils.create_keypoint_hflip_indices(cfg.DATASETS.TRAIN)
+            ret["keypoint_hflip_indices"] = utils.create_keypoint_hflip_indices(
+                cfg.DATASETS.TRAIN
+            )
 
         if cfg.MODEL.LOAD_PROPOSALS:
             ret["precomputed_proposal_topk"] = (
@@ -124,7 +126,10 @@ class CoCoInferenceDatasetMapper:
         # USER: Implement additional transformations if you have other types of data
         annos = [
             utils.transform_instance_annotations(
-                obj, transforms, image_shape, keypoint_hflip_indices=self.keypoint_hflip_indices
+                obj,
+                transforms,
+                image_shape,
+                keypoint_hflip_indices=self.keypoint_hflip_indices,
             )
             for obj in dataset_dict.pop("annotations")
             if obj.get("iscrowd", 0) == 0
@@ -157,7 +162,9 @@ class CoCoInferenceDatasetMapper:
 
         # USER: Remove if you don't do semantic/panoptic segmentation.
         if "sem_seg_file_name" in dataset_dict:
-            sem_seg_gt = utils.read_image(dataset_dict.pop("sem_seg_file_name"), "L").squeeze(2)
+            sem_seg_gt = utils.read_image(
+                dataset_dict.pop("sem_seg_file_name"), "L"
+            ).squeeze(2)
         else:
             sem_seg_gt = None
 
@@ -169,7 +176,9 @@ class CoCoInferenceDatasetMapper:
         # Pytorch's dataloader is efficient on torch.Tensor due to shared-memory,
         # but not efficient on large generic data structures due to the use of pickle & mp.Queue.
         # Therefore it's important to use torch.Tensor.
-        dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))
+        dataset_dict["image"] = torch.as_tensor(
+            np.ascontiguousarray(image.transpose(2, 0, 1))
+        )
         if sem_seg_gt is not None:
             dataset_dict["sem_seg"] = torch.as_tensor(sem_seg_gt.astype("long"))
 
@@ -181,7 +190,7 @@ class CoCoInferenceDatasetMapper:
             )
 
         # if not self.is_train:
-            # USER: Modify this if you want to keep them for some reason.
+        # USER: Modify this if you want to keep them for some reason.
         # dataset_dict.pop("annotations", None)
         # dataset_dict.pop("sem_seg_file_name", None)
         # return dataset_dict
@@ -209,11 +218,18 @@ class CoCoInferenceDatasetMapper:
             instances.gt_classes = torch.tensor(classes, dtype=torch.int64)
             if len(masks) == 0:
                 # Some image does not have annotation (all ignored)
-                instances.gt_masks = torch.zeros((0, pan_seg_gt.shape[-2], pan_seg_gt.shape[-1]))
+                instances.gt_masks = torch.zeros(
+                    (0, pan_seg_gt.shape[-2], pan_seg_gt.shape[-1])
+                )
                 instances.gt_boxes = Boxes(torch.zeros((0, 4)))
             else:
                 masks = BitMasks(
-                    torch.stack([torch.from_numpy(np.ascontiguousarray(x.copy())) for x in masks])
+                    torch.stack(
+                        [
+                            torch.from_numpy(np.ascontiguousarray(x.copy()))
+                            for x in masks
+                        ]
+                    )
                 )
                 instances.gt_masks = masks.tensor
                 instances.gt_boxes = masks.get_bounding_boxes()

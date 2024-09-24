@@ -15,31 +15,29 @@ import logging
 import os
 import sys
 import weakref
+
 from collections import OrderedDict
 from typing import Optional
+
 import torch
+
 from fvcore.nn.precise_bn import get_bn_modules
 from omegaconf import OmegaConf
 from torch.nn.parallel import DistributedDataParallel
 
-import data.transforms as T
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import CfgNode, LazyConfig
 from detectron2.data import (
     MetadataCatalog,
 )
-from data import (
-    build_detection_test_loader,
-    build_detection_train_loader,
-)
+
 from detectron2.evaluation import (
     DatasetEvaluator,
     inference_on_dataset,
     print_csv_format,
     verify_results,
 )
-from modeling import build_model
-from solver import build_lr_scheduler, build_optimizer
+
 from detectron2.utils import comm
 from detectron2.utils.collect_env import collect_env_info
 from detectron2.utils.env import seed_all_rng
@@ -49,16 +47,13 @@ from detectron2.utils.logger import setup_logger
 
 from detectron2.engine import hooks
 from detectron2.engine import TrainerBase
-from .train_loop import CustomAMPTrainer, CustomSimpleTrainer
 
-__all__ = [
-    "create_ddp_model",
-    "default_argument_parser",
-    "default_setup",
-    "default_writers",
-    "DefaultPredictor",
-    "DefaultTrainer",
-]
+from ..data import transforms as T
+from ..data import build_detection_test_loader, build_detection_train_loader
+from ..modeling import build_model
+from ..solver import build_lr_scheduler, build_optimizer
+
+from .train_loop import CustomAMPTrainer, CustomSimpleTrainer
 
 
 def create_ddp_model(model, *, fp16_compression=False, **kwargs):

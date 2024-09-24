@@ -1,7 +1,9 @@
+"""TODO"""
+
 import datetime
 import numpy as np
 import re
-from pycocotools import mask
+
 import pycocotools.mask as mask_util
 
 
@@ -56,14 +58,14 @@ def create_annotation_info(
         bounding_box: the bounding box for detection task. If bounding_box is not provided,
         we will generate one according to the binary mask.
     """
-    binary_mask_encoded = mask.encode(np.asfortranarray(binary_mask.astype(np.uint8)))
+    binary_mask_encoded = mask_util.encode(np.asfortranarray(binary_mask.astype(np.uint8)))
 
-    area = mask.area(binary_mask_encoded)
+    area = mask_util.area(binary_mask_encoded)
     if area < 1:
         return None
 
     if bounding_box is None:
-        bounding_box = mask.toBbox(binary_mask_encoded)
+        bounding_box = mask_util.toBbox(binary_mask_encoded)
 
     rle = mask_util.encode(np.array(binary_mask[..., None], order="F", dtype="uint8"))[
         0
@@ -113,8 +115,12 @@ CATEGORIES = [
     },
 ]
 
-convert = lambda text: int(text) if text.isdigit() else text.lower()
-natrual_key = lambda key: [convert(c) for c in re.split("([0-9]+)", key)]
+def convert(text: str) -> int | str:
+    return int(text) if text.isdigit() else text.lower()
+
+def natural_key(key: str) -> list:
+    return [convert(c) for c in re.split("([0-9]+)", key)]
+
 
 output = {
     "info": INFO,

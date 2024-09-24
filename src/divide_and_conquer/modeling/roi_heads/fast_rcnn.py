@@ -270,8 +270,8 @@ class FastRCNNOutputLayers(nn.Module):
         self.bbox_pred = nn.Linear(input_size, num_bbox_reg_classes * box_dim)
 
         nn.init.normal_(self.bbox_pred.weight, std=0.001)
-        for l in [self.cls_score, self.bbox_pred]:
-            nn.init.constant_(l.bias, 0)
+        for layer in [self.cls_score, self.bbox_pred]:
+            nn.init.constant_(layer.bias, 0)
 
         self.box2box_transform = box2box_transform
         self.smooth_l1_beta = smooth_l1_beta
@@ -387,7 +387,7 @@ class FastRCNNOutputLayers(nn.Module):
         if self.use_sigmoid_ce:
             loss_cls = self.sigmoid_cross_entropy_loss(scores, gt_classes)
         else:
-            if weights != None:
+            if weights is not None:
                 loss_cls = (
                     weights * cross_entropy(scores, gt_classes, reduction="none")
                 ).mean()

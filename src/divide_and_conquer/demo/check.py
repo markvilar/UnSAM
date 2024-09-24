@@ -1,5 +1,6 @@
 import argparse
 import os
+
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from pycocotools import mask as mask_util
@@ -74,11 +75,11 @@ def merge_gt_files(coco_dt):
         name = "sa_" + str(dt_img["id"]) + ".json"
         f = open(os.path.join("datasets/sa1b/annotations/val_gt_2", name))
         data = json.load(f)
-        if data == None:
+        if data is None:
             continue
 
         # one json only has one image in SA-1B
-        if type(data["image"]) is not list:
+        if not isinstance(data["image"], list):
             # SA only has image_id, not id
             data["image"]["id"] = data["image"]["image_id"]
             merged_data["images"].append(data["image"])
@@ -92,7 +93,7 @@ def merge_gt_files(coco_dt):
             annotation["iscrowd"] = 0
 
             # one json only has one image in SA-1B, and annotations don't have image_id
-            if type(data["image"]) is not list:
+            if not isinstance(data["image"], list):
                 annotation["image_id"] = data["image"]["id"]
 
             # Append the updated annotation to the merged_data

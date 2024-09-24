@@ -18,10 +18,12 @@ from detectron2.utils.logger import log_first_n
 from detectron2.modeling.backbone import Backbone, build_backbone
 from detectron2.modeling.postprocessing import detector_postprocess
 from detectron2.modeling.proposal_generator import build_proposal_generator
+
 from ..roi_heads import build_roi_heads
 from .build import META_ARCH_REGISTRY
 
-__all__ = ["GeneralizedRCNN", "ProposalNetwork"]
+# NOTE: Figure out if you can remove this
+# __all__ = ["GeneralizedRCNN", "ProposalNetwork"]
 
 
 def move_device_like(src: torch.Tensor, dst: torch.Tensor) -> torch.Tensor:

@@ -860,7 +860,7 @@ class CustomStandardROIHeads(ROIHeads):
                     torch.unique(x.gt_boxes.tensor[:100], dim=0).size()[0]
                     for x in proposals
                 ]
-            except:
+            except BaseException:
                 box_num_list = [0 for _ in proposals]
                 gt_num_list = [0 for _ in proposals]
                 no_gt_found = True

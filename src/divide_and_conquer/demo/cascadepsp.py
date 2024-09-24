@@ -1,4 +1,7 @@
+"""TODO"""
+
 import numpy as np
+
 from pycocotools import mask as mask_util
 from tqdm import tqdm
 

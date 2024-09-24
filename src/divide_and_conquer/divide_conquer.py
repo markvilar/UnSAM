@@ -1,11 +1,13 @@
+"""TODO"""
+
 import argparse
 import torch
 import os
-import tqdm
+import json
+
 import PIL.Image as Image
 import numpy as np
 import segmentation_refinement as refine
-import json
 from tqdm import tqdm
 from torchvision import transforms
 import dino

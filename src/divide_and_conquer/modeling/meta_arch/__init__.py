@@ -4,4 +4,8 @@
 
 from .build import META_ARCH_REGISTRY, build_model  # isort:skip
 
-__all__ = list(globals().keys())
+__all__ = [
+    "META_ARCH_REGISTRY", 
+    "build_model",
+]
+

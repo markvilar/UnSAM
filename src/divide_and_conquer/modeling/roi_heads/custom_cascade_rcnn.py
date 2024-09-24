@@ -9,7 +9,6 @@ from torch.autograd.function import Function
 from detectron2.config import configurable
 from detectron2.layers import ShapeSpec
 from detectron2.structures import Boxes, pairwise_iou
-from structures import pairwise_iou_max_scores
 from detectron2.structures import Instances
 from detectron2.utils.events import get_event_storage
 
@@ -17,8 +16,13 @@ from detectron2.modeling.box_regression import Box2BoxTransform
 from detectron2.modeling.matcher import Matcher
 from detectron2.modeling.poolers import ROIPooler
 from detectron2.modeling.roi_heads.box_head import build_box_head
+
+from ..structures import pairwise_iou_max_scores
+
 from .fast_rcnn import FastRCNNOutputLayers, fast_rcnn_inference
 from .roi_heads import ROI_HEADS_REGISTRY, CustomStandardROIHeads
+
+
 
 import torch.nn.functional as F
 
@@ -205,7 +209,7 @@ class CustomCascadeROIHeads(CustomStandardROIHeads):
                                 torch.unique(x.gt_boxes.tensor[:100], dim=0).size()[0]
                                 for x in proposals
                             ]
-                        except:
+                        except BaseException:
                             box_num_list = [0 for x in proposals]
                             gt_num_list = [0 for x in proposals]
                             no_gt_found = True
